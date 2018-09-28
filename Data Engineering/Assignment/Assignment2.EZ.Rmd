@@ -1,0 +1,1209 @@
+---
+title: "Assignment2"
+author: "Elyse Zhang"
+date: "4/20/2018"
+output: html_document
+---
+
+
+##Part B: Manipulating, Categorizing, Sorting and Grouping & Summarizing Data
+
+## QUESTION 1
+Set up the connection
+```{r}
+library(RMySQL)
+library(dplyr)
+library(ggplot2)
+library(DBI)
+connection = dbConnect(MySQL(),user="root", password="", 
+                dbname="sakila", host="localhost")
+```
+
+
+**a) Show the list of databases.**
+```{r}
+myQuery1a <- "SHOW DATABASES;"
+dbGetQuery(connection, myQuery1a)
+```
+
+
+**b) Select sakila database.**
+```{r}
+myQuery1b <- "USE sakila;"
+dbGetQuery(connection, myQuery1b)
+```
+
+
+**c) Show all tables in the sakila database.**
+```{r}
+myQuery1c <- "SHOW TABLES;"
+dbGetQuery(connection, myQuery1c)
+```
+
+
+**d) Show each of the columns along with their data types for the actor table.**
+```{r}
+myQuery1d <- 
+"SELECT
+  COLUMN_NAME, DATA_TYPE
+FROM
+  INFORMATION_SCHEMA.COLUMNS
+WHERE
+  TABLE_NAME = 'actor';"
+
+# alt: myQuery1d <- "DESCRIBE actor;"
+dbGetQuery(connection, myQuery1d)
+```
+
+
+**e) Show the total number of records in the actor table.**
+```{r}
+myQuery1e <- 
+"SELECT
+  COUNT(*) AS total_record 
+FROM 
+  actor;"
+dbGetQuery(connection, myQuery1e)
+```
+
+
+**f) What is the first name and last name of all the actors in the actor table ?**
+```{r}
+myQuery1f <- 
+"SELECT
+  first_name, last_name
+FROM 
+  actor;"
+dbGetQuery(connection, myQuery1f)
+```
+
+
+**g) Insert your first name and middle initial ( in the last name column ) into the actors table.**
+```{r}
+myQuery1g <- 
+"INSERT INTO actor (
+   first_name,last_name
+) VALUES (
+   'ELYSE','Z');"
+dbGetQuery(connection, myQuery1g)
+```
+
+To show it worked
+```{r}
+myQuery1g.show <- 
+"SELECT 
+   * 
+FROM
+   actor 
+ORDER BY 
+   actor_id DESC 
+LIMIT 1;"
+dbGetQuery(connection, myQuery1g.show)
+```
+
+
+**h) Update your middle initial with your last name in the actors table.**
+```{r}
+myQuery1h <- 
+"UPDATE 
+   actor
+SET 
+   last_name = 'ZHANG'
+WHERE 
+   first_name = 'ELYSE';"
+dbGetQuery(connection, myQuery1h)
+```
+
+
+**i) Delete the record from the actor table where the first name matches your first name.**
+```{r}
+myQuery1h <- 
+"DELETE FROM
+   actor
+WHERE 
+   first_name = 'ELYSE';"
+dbGetQuery(connection, myQuery1h)
+```
+
+
+**j) Create a table payment_type with the following specifications and appropriate data types**
+Table Name : “Payment_type”
+Primary Key: "payment_type_id”
+Column: “Type”
+Insert following rows in to the table: 1, “Credit Card” ; 2, “Cash”; 3, “Paypal” ; 4 , “Cheque”
+```{r}
+myQuery1j<- 
+"CREATE TABLE payment_type (
+  payment_type_id SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  type VARCHAR(45) NOT NULL,
+  PRIMARY KEY  (payment_type_id)
+)ENGINE=InnoDB DEFAULT CHARSET=utf8;"
+dbGetQuery(connection, myQuery1j)
+
+myQuery1j2<-
+"INSERT INTO payment_type VALUES (1,'Credi Card'),
+(2,'Cash'),
+(3,'Paypal'),
+(4,'Cheque');"
+dbGetQuery(connection, myQuery1j2)
+```
+
+
+**k) Rename table payment_type to payment_types.**
+```{r}
+myQuery1k<- 
+"ALTER TABLE payment_type RENAME payment_types;"
+dbGetQuery(connection, myQuery1k)
+```
+
+
+**l) Drop the table payment_types.**
+```{r}
+myQuery1l<- 
+"DROP TABLE payment_types;"
+dbGetQuery(connection, myQuery1l)
+```
+
+
+## QUESTION 2
+**a) List all the movies ( title & description ) that are rated PG-13 ?**
+```{r}
+myQuery2a<- 
+"SELECT 
+	  title, description
+FROM
+    film
+WHERE
+    rating = 'PG-13';"
+dbGetQuery(connection, myQuery2a)
+```
+
+**b) List all movies that are either PG OR PG-13 using IN operator ?**
+```{r}
+myQuery2b<- 
+"SELECT 
+	  title, description
+FROM
+    film
+WHERE
+    rating IN ('PG-13', 'PG');"
+dbGetQuery(connection, myQuery2b)
+```
+
+**c) Report all payments greater than and equal to 2$ and Less than equal to 7$ ? # Note : write 2 separate queries conditional operator and BETWEEN keyword**
+```{r}
+myQuery2c<- 
+"SELECT 
+	  payment_id, amount
+FROM
+    payment
+WHERE
+    amount BETWEEN 2 AND 7;
+"
+dbGetQuery(connection, myQuery2c)
+```
+
+**d) List all addresses that have phone number that contain digits 589 Note : write 3 different queries**
+```{r}
+myQuery2d1<- 
+"SELECT 
+	  address
+FROM
+    address
+WHERE
+    phone LIKE '%589%';"
+dbGetQuery(connection, myQuery2d1)
+```
+
+**start with 140**
+```{r}
+myQuery2d2<- 
+"SELECT 
+	  address
+FROM
+    address
+WHERE
+    phone LIKE '140%';"
+dbGetQuery(connection, myQuery2d2)
+```
+
+**end with 589**
+```{r}
+myQuery2d3<- 
+"SELECT 
+	  address
+FROM
+    address
+WHERE
+    phone LIKE '%589';"
+dbGetQuery(connection, myQuery2d3)
+```
+
+**e) List all staff members ( first name, last name, email ) whose password is NULL?**
+```{r}
+myQuery2e<- 
+"SELECT 
+	  first_name, last_name, email
+FROM
+    staff
+WHERE
+    password IS NULL;"
+dbGetQuery(connection, myQuery2e)
+```
+
+
+**f) Select all films that have title names like ZOO and rental duration greater than or equal to 4**
+```{r}
+myQuery2f<- 
+"SELECT 
+	  *
+FROM
+    film
+WHERE
+    title LIKE '%ZOO%'
+AND 
+    rental_duration >= 4;"
+dbGetQuery(connection, myQuery2f)
+```
+
+**g) What is the cost of renting the movie ACADEMY DINOSAUR for 2 weeks ? # Note : use of column alias**
+```{r}
+# assuming rental_rate is for the rental duration listed
+myQuery2g<- 
+"SELECT 
+	  rental_rate * 14 / rental_duration AS rental_cost
+FROM
+    film f
+WHERE
+    title = 'ACADEMY DINOSAUR';"
+dbGetQuery(connection, myQuery2g)
+```
+
+**h) List all unique districts where the customers, staff, and stores are located # Note : check for NOT NULL values**
+```{r}
+myQuery2h<- 
+"SELECT 
+    district, COUNT(*)
+FROM
+    address
+WHERE
+     district IS NOT NULL
+GROUP BY
+    district
+HAVING COUNT(*) = 1;"
+dbGetQuery(connection, myQuery2h)
+```
+
+**i) List the top 10 newest customers across all stores**
+```{r}
+myQuery2i<- 
+"SELECT 
+    *
+FROM
+    customer
+ORDER BY create_date DESC
+LIMIT 10;"
+dbGetQuery(connection, myQuery2i)
+```
+
+## Question 3
+**a) Show total number of movies**
+```{r}
+myQuery3a<- 
+"SELECT 
+    COUNT(*) AS numofmovies
+FROM
+    film;"
+dbGetQuery(connection, myQuery3a)
+```
+
+**b) What is the minimum payment received and max payment received across all transactions ?**
+```{r}
+myQuery3b<- 
+"SELECT 
+    MAX(amount),
+    MIN(amount)
+FROM
+    payment;"
+dbGetQuery(connection, myQuery3b)
+```
+
+**c) Number of customers that rented movies between Feb-2005 & May-2005 ( based on paymentDate ).**
+```{r}
+myQuery3c<- 
+"SELECT
+    COUNT(*)
+FROM
+    payment
+WHERE
+    payment_date BETWEEN '2005-02-01' AND '2005-05-31';"
+dbGetQuery(connection, myQuery3c)
+```
+
+**d) List all movies where replacement_cost is greater than 15$ or rental_duration is between 6 & 10 days**
+```{r}
+myQuery3d<- 
+"SELECT 
+	  *
+FROM
+    film
+WHERE
+    replacement_cost > 15
+AND 
+    rental_duration BETWEEN 6 AND 10;"
+dbGetQuery(connection, myQuery3d)
+```
+
+**e) What is the total amount spent by customers for movies in the year 2005 ?**
+```{r}
+myQuery3e<- 
+"SELECT
+    SUM(amount)
+FROM
+    payment
+WHERE
+    payment_date BETWEEN '2005-01-01' AND '2005-12-31';"
+dbGetQuery(connection, myQuery3e)
+```
+
+**f) What is the average replacement cost across all movies ?**
+```{r}
+myQuery3f<- 
+"SELECT 
+	  AVG(replacement_cost)
+FROM
+    film;"
+dbGetQuery(connection, myQuery3f)
+```
+
+**g) What is the standard deviation of rental rate across all movies ?**
+```{r}
+myQuery3g<- 
+"SELECT 
+	  STD(rental_rate)
+FROM
+    film;"
+dbGetQuery(connection, myQuery3g)
+```
+
+**h) What is the midrange of the rental duration for all movies**
+```{r}
+myQuery3h<- 
+"SELECT 
+	  (MAX(rental_duration)+MIN(rental_duration))/2 AS durationmidrange
+FROM
+    film;"
+dbGetQuery(connection, myQuery3h)
+```
+
+## QUESTION 4
+**a) Customers sorted by first Name and last name in ascending order.**
+```{r}
+myQuery4a<-
+"SELECT 
+    first_name,
+    last_name
+FROM
+    customer
+ORDER BY first_name ASC, last_name ASC;"
+dbGetQuery(connection, myQuery4a)
+```
+
+**b) Group distinct addresses by district.**
+```{r}
+myQuery4b<-
+"SELECT 
+    district, 
+    address
+FROM 
+    address
+GROUP BY 
+    district,address;
+"
+dbGetQuery(connection, myQuery4b)
+```
+
+**c) Count of movies that are either G/NC-17/PG-13/PG/R grouped by rating.**
+```{r}
+myQuery4c<-
+"SELECT 
+    rating, COUNT(*) AS numberrating
+FROM 
+    film
+GROUP BY 
+    rating 
+HAVING rating in ('G', 'NC-17', 'PG-13', 'PG', 'R');"
+dbGetQuery(connection, myQuery4c)
+```
+
+**d) Number of addresses in each district.**
+```{r}
+myQuery4d<-
+"SELECT 
+    district, COUNT(*) AS numberaddress
+FROM 
+    address
+GROUP BY 
+    district ASC;"
+dbGetQuery(connection, myQuery4d)
+```
+
+**e) Find the movies where rental rate is greater than 1$ and order result set by descending order.**
+```{r}
+myQuery4e<-
+"SELECT 
+    title
+FROM 
+    film
+WHERE
+    rental_rate > 1
+ORDER BY title DESC;"
+dbGetQuery(connection, myQuery4e)
+```
+
+**f) Top 2 movies that are rated R with the highest replacement cost ?**
+```{r}
+myQuery4f<-
+"SELECT 
+    title, rating, replacement_cost
+FROM 
+    film
+WHERE
+    rating = 'R'
+ORDER BY
+    replacement_cost DESC
+LIMIT 2;"
+dbGetQuery(connection, myQuery4f)
+```
+
+**g) Find the most frequently occurring (mode) rental rate across products.**
+```{r}
+myQuery4g<-
+"SELECT 
+    rental_rate, COUNT(*) AS frequentrate
+FROM
+    film
+GROUP BY
+    rental_rate
+ORDER BY
+    frequentrate
+LIMIT 1;"
+dbGetQuery(connection, myQuery4g)
+```
+
+**h) Find the top 2 movies with movie length greater than 50mins and which has commentaries as a special features.**
+```{r}
+myQuery4h<-
+"SELECT
+    title, length, special_features
+FROM
+    film
+WHERE
+    length > 50
+AND 
+    special_features LIKE '%commentaries%'
+ORDER BY
+    length DESC
+LIMIT 2;"
+dbGetQuery(connection, myQuery4h)
+```
+
+**i) List the years with more than 2 movies released.**
+```{r}
+myQuery4i<-
+"SELECT
+    release_year, COUNT(*) AS numfilm_released
+FROM
+    film
+GROUP BY 
+	release_year
+Having COUNT(*) >2
+ORDER BY
+    COUNT(*) ASC;"
+dbGetQuery(connection, myQuery4i)
+```
+
+## Part C: Combining Data, Nested Queries, Views and Indexes, Transforming Data
+
+##Question 1
+**a) List the actors (firstName, lastName) who acted in more then 25 movies. (Note: Also show the count of movies against each actor)**
+```{r}
+myQueryC1a ="SELECT
+    a.first_name,
+    a.last_name,
+    count(fa.actor_id) AS numFilmActed
+FROM
+    actor a
+JOIN
+    film_actor fa
+ON
+    a.actor_id = fa.actor_id
+GROUP BY
+    fa.actor_id
+HAVING
+    count(fa.actor_id)> 25
+ORDER BY
+    count(fa.actor_id) DESC;"
+dbGetQuery(connection, myQueryC1a)
+```
+
+
+**b) List the actors who have worked in the German language movies.**
+```{r}
+myQueryC1b ="SELECT
+    a.first_name,
+    a.last_name,
+    f.title
+FROM
+    actor a 
+JOIN
+    film_actor fa
+ON
+    a.actor_id = fa.actor_id
+JOIN  
+    film f
+ON  fa.film_id = f.film_id
+WHERE
+    f.language_id = 6;"
+dbGetQuery(connection, myQueryC1b)
+```
+
+**c) List the actors who acted in horror movies. Note: Show the count of movies against each actor in the result set.**
+```{r}
+myQueryC1c ="SELECT
+    a.first_name,  
+    a.last_name,
+    COUNT(a.actor_id) AS numHorrorMovies
+FROM   
+    actor a  
+JOIN  
+    film_actor fa  
+    ON   a.actor_id = fa.actor_id  
+JOIN   
+    film f  
+    ON  fa.film_id = f.film_id
+JOIN
+    film_category fc
+    ON  fc.film_id = f.film_id
+JOIN
+    category c
+    ON fc.category_id = c.category_id
+WHERE 
+    c.name = 'Horror'
+GROUP BY
+    a.actor_id;"
+dbGetQuery(connection, myQueryC1c)
+```
+
+**d) List all customers who rented more than 3 horror movies.**
+```{r}
+myQueryC1d ="SELECT
+    ct.first_name,  
+    ct.last_name
+FROM   
+    customer ct
+JOIN
+    rental rt
+    ON   ct.customer_id = rt.customer_id  
+JOIN   
+    inventory inv  
+    ON  rt.inventory_id= inv.inventory_id
+JOIN
+    film f
+    ON inv.film_id = f.film_id
+JOIN
+    film_category fc
+    ON  fc.film_id = f.film_id
+JOIN
+    category c
+    ON fc.category_id = c.category_id
+WHERE 
+    c.name = 'Horror'
+GROUP BY
+	ct.customer_id
+HAVING
+    COUNT(ct.customer_id)>3;"
+dbGetQuery(connection, myQueryC1d)
+```
+
+**e) List all customers who rented the movie which starred SCARLETT BENING**
+```{r}
+myQueryC1e ="SELECT
+    ct.first_name,  
+    ct.last_name
+FROM   
+    customer ct
+JOIN
+    rental rt
+    ON   ct.customer_id = rt.customer_id  
+JOIN   
+    inventory inv  
+    ON  rt.inventory_id= inv.inventory_id
+JOIN
+    film f
+    ON inv.film_id = f.film_id
+JOIN
+    film_actor fa
+    ON  fa.film_id = f.film_id
+JOIN
+    actor a
+    ON fa.actor_id = a.actor_id
+WHERE 
+    a.first_name = 'SCARLETT'
+    AND
+    a.last_name = 'BENING'
+GROUP BY
+	ct.customer_id;"
+dbGetQuery(connection, myQueryC1e)
+```
+
+
+**f) Which customers residing at postal code 62703 rented movies that were Documentaries.**
+```{r}
+myQueryC1f ="SELECT
+    ct.first_name,  
+    ct.last_name
+FROM   
+    customer ct
+JOIN
+    address addr
+    ON   ct.address_id = addr.address_id
+JOIN
+    rental rt
+    ON   ct.customer_id = rt.customer_id  
+JOIN   
+    inventory inv  
+    ON  rt.inventory_id= inv.inventory_id
+JOIN
+    film f
+    ON inv.film_id = f.film_id
+JOIN
+    film_category fc
+    ON  fc.film_id = f.film_id
+JOIN
+    category c
+    ON fc.category_id = c.category_id
+WHERE 
+    c.name = 'Documentary'
+    AND
+    addr.postal_code = '62703'
+GROUP BY
+	ct.customer_id;"
+dbGetQuery(connection, myQueryC1f)
+```
+
+**g) Find all the addresses where the second address line is not empty (i.e., contains some text), and return these second addresses sorted.**
+
+```{r}
+myQueryC1g ="SELECT
+    address, address2
+FROM 
+    address
+WHERE
+    address2 <>''
+ORDER BY address2 ASC;"
+dbGetQuery(connection, myQueryC1g)
+```
+
+**h) How many films involve a “Crocodile” and a “Shark” based on film description ?**
+```{r}
+myQueryC1h ="SELECT
+    count(*)
+FROM 
+    film
+WHERE
+    description LIKE '%Crocodile%' OR description LIKE '%Shark%';"
+dbGetQuery(connection, myQueryC1h)
+```
+
+**i) List the actors who played in a film involving a “Crocodile” and a “Shark”, along with the release year of the movie, sorted by the actors’ last names.**
+```{r}
+myQueryC1i ="SELECT
+    a.first_name,
+    a.last_name,
+    f.title,
+    f.release_year
+FROM
+    actor a
+JOIN
+    film_actor fa
+    ON fa.actor_id = a.actor_id
+JOIN
+    film f
+    ON f.film_id = fa.film_id
+WHERE
+    f.description LIKE '%Crocodile%' OR f.description LIKE '%Shark%'
+ORDER BY a.last_name;"
+dbGetQuery(connection, myQueryC1i)
+```
+
+**j) Find all the film categories in which there are between 55 and 65 films. Return the names of categories and the number of films per category, sorted from highest to lowest by the number of films.**
+```{r}
+myQueryC1j ="SELECT
+    c.name,
+    COUNT(*)
+FROM
+	category c
+JOIN
+    film_category fc
+    ON fc.category_id = c.category_id
+GROUP BY 
+    fc.category_id
+HAVING
+    COUNT(*) BETWEEN 55 AND 65
+ORDER BY
+    COUNT(*) DESC;"
+dbGetQuery(connection, myQueryC1j)
+```
+
+**k) In which of the film categories is the average difference between the film replacement cost and the rental rate larger than 17$?**
+```{r}
+myQueryC1k ="SELECT
+    c.name
+FROM
+    category c
+WHERE
+    c.category_id IN(
+    SELECT
+        fc.category_id
+	FROM
+        film_category fc
+    JOIN
+        film f
+        ON f.film_id =fc.film_id
+	GROUP BY fc.category_id
+    HAVING
+		AVG(f.replacement_cost)-AVG(f.rental_rate) > 17);"
+dbGetQuery(connection, myQueryC1k)
+```
+
+
+**l) Many DVD stores produce a daily list of overdue rentals so that customers can be contacted and asked to return their overdue DVDs. To create such a list, search the rental table for films with a return date that is NULL and where the rental date is further in the past than the rental duration specified in the film table. If so, the film is overdue and we should produce the name of the film along with the customer name and phone number.**
+
+**This is not doable, I listed people's name and email and movie name if their rental time is longer than rental duration**
+```{r}
+myQueryC1l ="SELECT
+    f.title,
+    ct.first_name,
+    ct.last_name,
+    addr.phone,
+    DATEDIFF(rt.return_date,rt.rental_date),
+    f.rental_duration
+FROM
+    customer ct
+JOIN
+    address addr
+    ON   ct.address_id = addr.address_id
+JOIN
+    rental rt
+    ON   ct.customer_id = rt.customer_id
+JOIN   
+    inventory inv  
+    ON  rt.inventory_id= inv.inventory_id
+JOIN
+    film f
+    ON inv.film_id = f.film_id
+WHERE
+    DATEDIFF(rt.return_date,rt.rental_date) > f.rental_duration;"
+dbGetQuery(connection, myQueryC1l)
+```
+
+**m) Find the list of all customers and staff given a store id # Note : use a set operator, do not remove duplicates**
+```{r}
+myQueryC1m ="SELECT
+    ct.first_name AS customerFirstName,
+    ct.last_name AS customerLirstName,
+    stf.first_name AS staffFirstName,
+    stf.last_name AS staffLastName
+FROM
+    customer ct
+JOIN
+    store st
+    ON ct.store_id = st.store_id
+JOIN
+    staff stf
+    ON stf.store_id = st.store_id
+WHERE
+    st.store_id = 1;"
+dbGetQuery(connection, myQueryC1m)
+```
+
+## Question 2
+**a) List actors and customers whose first name is the same as the first name of the actor with ID 8.**
+```{r}
+myQueryC2a ="SELECT 
+    a.actor_id AS ID,
+    a.first_name AS FirstName,
+    a.last_name AS LastName
+FROM
+    actor a
+WHERE
+    a.first_name = 
+    (SELECT 
+        first_name
+	FROM 
+        actor WHERE actor_id = 8)
+UNION
+
+SELECT
+    ct.customer_id,
+    ct.first_name,
+    ct.last_name
+FROM
+	customer ct
+WHERE
+    ct.first_name = 
+    (SELECT 
+        first_name
+	FROM 
+        actor WHERE actor_id = 8);"
+dbGetQuery(connection, myQueryC2a)
+```
+
+**b) List customers and payment amounts, with payments greater than average the payment amount**
+```{r}
+myQueryC2b ="
+SELECT
+    ct.customer_id,
+    ct.first_name,
+    ct.last_name,
+    pm.amount
+FROM
+	customer ct
+JOIN
+    payment pm
+    ON pm.customer_id = ct.customer_id
+WHERE
+    pm.amount >
+    (SELECT
+        AVG(amount)
+	  FROM
+        payment);"
+dbGetQuery(connection, myQueryC2b)
+```
+
+**c) List customers who have rented movies atleast once # Note: use IN clause**
+```{r}
+myQueryC2c ="
+SELECT
+	first_name,
+    last_name
+FROM
+    customer
+    WHERE customer_id IN
+    (SELECT
+        customer_id
+    FROM
+        rental
+	GROUP BY customer_id);"
+dbGetQuery(connection, myQueryC2c)
+```
+
+**d) Find the floor of the maximum, minimum and average payment amount**
+```{r}
+myQueryC2d ="
+SELECT
+    FLOOR(MAX(amount)) AS Maximum,
+	  FLOOR(MIN(amount)) AS Minimum,
+	  FLOOR(AVG(amount)) AS Average
+FROM 
+	  payment;"
+dbGetQuery(connection, myQueryC2d)
+```
+
+## Question 3
+**a) Create a view called actors_portfolio which contains information about actors and films (including titles and category).**
+```{r}
+myQueryC3a ="
+CREATE OR REPLACE VIEW actors_portfolio AS
+    SELECT 
+        a.*,
+        f.title,
+        c.name as Category
+    FROM
+        actor a
+	JOIN 
+        film_actor fa
+    ON fa.actor_id = a.actor_id
+    JOIN 
+        film f
+    ON f.film_id = fa.film_id
+    JOIN
+        film_category fc
+    ON f.film_id = fc.film_id
+    JOIN
+		category c
+	ON fc.category_id = c.category_id;"
+dbGetQuery(connection, myQueryC3a)
+```
+
+**b) Describe the structure of the view and query the view to get information on the actor ADAM GRANT**
+```{r}
+myQueryC3b1 ="
+Describe actors_portfolio;"
+dbGetQuery(connection, myQueryC3b1)
+```
+
+```{r}
+myQueryC3b2 ="
+SELECT *
+FROM
+    actors_portfolio
+WHERE
+    first_name = 'ADAM' AND last_name = 'GRANT';"
+dbGetQuery(connection, myQueryC3b2)
+```
+
+**c) Insert a new movie titled Data Hero in Sci-Fi Category starring ADAM GRANT**
+```{r}
+# myQueryC3c1 ="
+# INSERT INTO actors_portfolio(actor_id, first_name,last_name,last_update)
+# values(71,'ADAM','GRANT',NOW());"
+# dbGetQuery(connection, myQueryC3c1) #cannot include the actor_id due to error
+#Error in .local(conn, statement, ...) : could not run statement: Duplicate entry '71' for key 'PRIMARY'
+```
+
+```{r}
+# myQueryC3c2 ="
+# INSERT INTO actors_portfolio(title)
+# values('Data Hero');"
+# dbGetQuery(connection, myQueryC3c2)
+
+#Error in .local(conn, statement, ...) : could not run statement: Field of view 'sakila.actors_portfolio' underlying table doesn't have a default value
+```
+
+```{r}
+myQueryC3c3 ="
+INSERT INTO actors_portfolio(category)
+values('Sci-Fi');"
+dbGetQuery(connection, myQueryC3c3)
+```
+
+## Question 4
+**a) Extract the street number ( characters 1 through 4 ) from customer addressLine1**
+```{r}
+myQueryC4a ="
+SELECT
+    substring(address,1,4) AS streetNumber
+FROM
+    address
+WHERE 
+    address_id IN
+    (SELECT
+        address_id
+	FROM
+        customer);"
+dbGetQuery(connection, myQueryC4a)
+```
+
+**b) Find out actors whose last name starts with character A, B or C.**
+```{r}
+myQueryC4b ="
+SELECT
+    first_name,
+    last_name
+FROM
+    actor
+WHERE
+    last_name LIKE 'A%' OR last_name LIKE 'B%' OR last_name LIKE 'C%';"
+dbGetQuery(connection, myQueryC4b)
+```
+
+**c) Find film titles that contains exactly 10 characters**
+```{r}
+myQueryC4c ="
+SELECT
+    title
+FROM
+    film
+WHERE
+    CHAR_LENGTH(title) = 10;"
+dbGetQuery(connection, myQueryC4c)
+```
+
+**d) Format a payment_date using the following format e.g "22/1/2016"**
+```{r}
+myQueryC4d ="
+SELECT
+    DATE_FORMAT(DATE(payment_date), '%d/%m/%Y') AS '%d/%m/%Y'
+FROM
+    payment
+WHERE payment_id = 1;"
+dbGetQuery(connection, myQueryC4d)
+```
+
+**e) Find the number of days between two date values rental_date & return_date**
+```{r}
+myQueryC4e ="
+SELECT
+    DATEDIFF(return_date,rental_date)
+FROM
+    rental;"
+dbGetQuery(connection, myQueryC4e)
+```
+
+## Question 5
+**Provide eight additional queries and indicate the specific business use cases they address.**
+
+**a) Find top 100 customer who rented the most often and email address, use case is marketing upsale opportunity**
+```{r}
+myQueryC5a ="
+SELECT
+    c.first_name,
+    c.last_name,
+    c.email,
+    COUNT(rtl.customer_id)
+FROM
+    customer c
+JOIN 
+    rental rtl
+    ON c.customer_id = rtl.customer_id
+GROUP BY
+    c.customer_id
+ORDER BY COUNT(rtl.customer_id) DESC
+LIMIT 100;"
+dbGetQuery(connection, myQueryC5a)
+```
+
+
+**b) Find top 100 customer who pays the most and email address, use case is marketing upsale opportunity**
+```{r}
+myQueryC5b ="
+SELECT
+    c.first_name,
+    c.last_name,
+    SUM(amount)
+FROM
+    customer c
+JOIN 
+    payment pm
+    ON c.customer_id = pm.customer_id
+GROUP BY
+    c.customer_id
+ORDER BY SUM(amount) DESC
+LIMIT 100;"
+dbGetQuery(connection, myQueryC5b)
+```
+
+**c) Return customer who never rented, use case is digital marketing cost saving, more specifically, not to waste resource contact or email them in the short time**
+```{r}
+myQueryC5c ="
+SELECT
+    c.first_name,
+    c.last_name,
+    c.email,
+    COUNT(rtl.customer_id)
+FROM
+    customer c
+JOIN 
+    rental rtl
+    ON c.customer_id = rtl.customer_id
+GROUP BY
+    c.customer_id
+HAVING COUNT(rtl.customer_id) = 1;"
+dbGetQuery(connection, myQueryC5c)
+```
+
+**d) Count movies that are most rented. business case would be, get some more inventory and increase revenue**
+```{r}
+myQueryC5d ="
+SELECT
+    f.title,
+    COUNT(inv.inventory_id)
+FROM
+    rental rt
+JOIN   
+    inventory inv  
+    ON  rt.inventory_id= inv.inventory_id
+JOIN
+    film f
+    ON inv.film_id = f.film_id
+
+GROUP BY inv.film_id
+ORDER BY COUNT(inv.inventory_id) DESC;"
+dbGetQuery(connection, myQueryC5d)
+```
+
+**e) which store has more customer, so that we may want to expand it**
+```{r}
+myQueryC5e ="
+SELECT
+    store_id,
+    COUNT(customer_id)
+FROM 
+    customer
+GROUP BY 
+    store_id;"
+dbGetQuery(connection, myQueryC5e)
+```
+
+**f) which store has more income, so that we may want to expand it**
+```{r}
+myQueryC5f ="
+SELECT
+    staff_id, #staff and store id are the same fore this schema
+    SUM(amount)
+FROM 
+    payment
+GROUP BY 
+    staff_id;"
+dbGetQuery(connection, myQueryC5f)
+```
+
+**g) Also check the inventory, so that if the store that has more customers has less inventory, that should be corrected.**
+```{r}
+myQueryC5g ="
+SELECT
+    COUNT(inventory_id)
+FROM
+    inventory
+GROUP BY store_id;"
+dbGetQuery(connection, myQueryC5g)
+```
+
+**h) find who are the most popular actors so that store can prepare more inventorys**
+```{r}
+myQueryC5h ="
+SELECT
+    a.first_name,
+    a.last_name,
+    COUNT(rt.rental_id)
+FROM
+    rental rt
+JOIN   
+    inventory inv  
+    ON  rt.inventory_id= inv.inventory_id
+JOIN
+    film f
+    ON inv.film_id = f.film_id
+JOIN
+    film_actor fa
+    ON f.film_id = fa.film_id
+JOIN 
+    actor a
+    ON fa.actor_id = a.actor_id
+GROUP BY
+    fa.actor_id
+ORDER BY COUNT(rt.rental_id) DESC
+LIMIT 100;"
+dbGetQuery(connection, myQueryC5h)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
