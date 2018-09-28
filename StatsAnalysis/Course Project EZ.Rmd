@@ -336,6 +336,7 @@ anova(RegressionModelComparison.Full,RegressionModelComparison.Null)
 * **drop1()**
 ```{r}
 drop1(RegressionModelComparison.Full)
+
 ```
 
 * **pairs**
