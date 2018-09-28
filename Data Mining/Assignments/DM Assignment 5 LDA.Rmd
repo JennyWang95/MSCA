@@ -1,0 +1,194 @@
+---
+title: "DM Assignment 5 LDA"
+author: "Elyse Zhang"
+date: "8/11/2018"
+output: html_document
+---
+
+### 1 Data
+```{r}
+dataPath = '/Users/Elyse/Documents/UChicago/Courses/Summer 2018/Data Mining/Assignments/Assignment 3'
+German.Credit = read.csv(file=paste(dataPath,"German.Credit.csv",sep="/"),header=TRUE,sep=",")
+
+#library(caret)
+#data(GermanCredit)
+summary(German.Credit)
+```
+
+```{r}
+for (i in c(1,2,4,5,7:13,15:21))
+  German.Credit[,i] = as.factor(German.Credit[,i])
+str(German.Credit)
+```
+
+```{r}
+set.seed(101)
+train.indexes = sample(nrow(German.Credit), size=0.7*nrow(German.Credit))
+
+Train.comp = German.Credit[train.indexes,]
+Holdout.comp = German.Credit[-train.indexes,]
+```
+
+### 2 and 3 Model and Validation
+
+* LDA 
+```{r}
+library(MASS)
+```
+
+```{r}
+Train.lda = lda(Creditability ~ ., data = Train.comp)
+#Train.lda
+lda.Train.pred = predict(Train.lda)$class
+```
+
+```{r}
+table(Train.comp[,1],lda.Train.pred)
+round(prop.table(table(Train.comp[,1],lda.Train.pred),1),2)
+```
+
+```{r}
+lda.Holdout.pred = predict(Train.lda, newdata = Holdout.comp)$class
+#head(Holdout.pred)
+```
+
+```{r}
+table(Holdout.comp[, 1],lda.Holdout.pred)
+round(prop.table(table(Holdout.comp[, 1],lda.Holdout.pred),1),2)
+```
+
+* Type 1 error is high, very risky for the companies to give out loans.
+
+* QDA
+```{r}
+Train.qda = qda(Creditability ~ ., data = Train.comp)
+Train.pred.qda = predict(Train.qda)$class
+```
+
+```{r}
+table(Train.comp[,1],Train.pred.qda)
+round(prop.table(table(Train.comp[,1],Train.pred.qda),1),2)
+```
+
+```{r}
+Holdout.pred.qda = predict(Train.qda, newdata = Holdout.comp)$class
+```
+
+```{r}
+table(Holdout.comp[, 1],Holdout.pred.qda)
+round(prop.table(table(Holdout.comp[, 1],Holdout.pred.qda),1),2)
+```
+
+* QDA's performance dropped from training to testing much more than LDA, the former is more stable
+* Overall, QDA has better performance than LDA
+
+### 4. Ensemble Model
+
+```{r}
+cn = c('Logistic', 'Tree', 'LDA', 'QDA', 'Ensemble')
+ensemble.train = data.frame(matrix(nrow = 700, ncol = 5))
+ensemble.train.2 = data.frame(matrix(nrow = 700, ncol = 5))
+
+ensemble.test = data.frame(matrix(nrow = 300, ncol = 5))
+
+colnames(ensemble.train) = cn
+colnames(ensemble.train.2) = cn
+colnames(ensemble.test) = cn
+```
+
+
+* Because the logistic regression has lowest Type 1 error, so we put a little more weight on it and to break the tie. 
+
+```{r}
+lr.predicted.cred = read.csv("~/Documents/UChicago/Courses/Summer 2018/Data Mining/Assignments/Assignment 4/lr.predicted.cred.csv", sep="")
+
+lr.predicted.cred.test = read.csv("~/Documents/UChicago/Courses/Summer 2018/Data Mining/Assignments/Assignment 4/lr.predicted.cred.test.csv", sep="")
+
+ct.predict.train = read.csv("~/Documents/UChicago/Courses/Summer 2018/Data Mining/Assignments/Assignment 4/ct.predict.train.csv", sep="")
+
+ct.predict.test <- read.csv("~/Documents/UChicago/Courses/Summer 2018/Data Mining/Assignments/Assignment 4/ct.predict.test.csv", sep="")
+```
+
+
+
+```{r}
+ensemble.train[,1] = lr.predicted.cred
+ensemble.train[,1][ensemble.train[,1] == 1] = 1.1
+ensemble.train[,1][ensemble.train[,1] == 0] = -0.1
+
+ensemble.train[,2] = ct.predict.train
+ensemble.train[,3] = as.integer(lda.Train.pred) -1
+ensemble.train[,4] = as.integer(Train.pred.qda) -1 # minus 1 because 0 and 1 changed to 1 and 2
+ensemble.train[,5] = rowSums(ensemble.train[,1:4])
+
+```
+
+```{r}
+ensemble.train[,5][ensemble.train[,5] <= 2] = 0
+ensemble.train[,5][ensemble.train[,5] > 2] = 1
+```
+
+
+```{r}
+#Confusion Matirx
+table(Train.comp[, 1],ensemble.train$Ensemble)
+round(prop.table(table(Train.comp[, 1], ensemble.train$Ensemble),1),2)
+```
+
+* We could also try not putting the weight and do random selection when there is a tie
+```{r}
+ensemble.train.2[,1] = lr.predicted.cred
+ensemble.train.2[,2] = ct.predict.train
+ensemble.train.2[,3] = as.integer(lda.Train.pred) -1
+ensemble.train.2[,4] = as.integer(Train.pred.qda) -1 # minus 1 because 0 and 1 changed to 1 and 2
+ensemble.train.2[,5] = rowSums(ensemble.train.2[,1:4])
+
+```
+
+```{r}
+ensemble.train.2[,5][ensemble.train.2[,5] < 2] = 0
+ensemble.train.2[,5][ensemble.train.2[,5] > 2] = 1
+ensemble.train.2[,5][ensemble.train.2[,5] == 2] = sample(0:1,1)
+
+```
+
+```{r}
+#Confusion Matirx
+table(Train.comp[, 1],ensemble.train.2$Ensemble)
+round(prop.table(table(Train.comp[, 1],ensemble.train.2$Ensemble),1),2)
+```
+
+* The first method with weight is better for Type 1 Error
+
+```{r}
+ensemble.test[,1] = lr.predicted.cred.test
+ensemble.test[,1][ensemble.test[,1] == 1] = 1.1
+ensemble.test[,1][ensemble.test[,1] == 0] = -0.1
+
+ensemble.test[,2] = ct.predict.test
+ensemble.test[,3] = as.integer(lda.Holdout.pred) -1
+ensemble.test[,4] = as.integer(Holdout.pred.qda) -1
+ensemble.test[,5] = rowSums(ensemble.test[,1:4])
+
+ensemble.test[,5][ensemble.test[,5] <= 2] = 0
+ensemble.test[,5][ensemble.test[,5] > 2] = 1
+```
+
+
+```{r}
+table(Holdout.comp[, 1],ensemble.test$Ensemble)
+round(prop.table(table(Holdout.comp[, 1],ensemble.test$Ensemble),1),2)
+```
+
+### 5 Summary
+
+* Ensemble model have good results from Holdout validation, no Type 1 Error increase from the training set and 9% increase in type 2 Error
+* However, again we ought to pay more attention to Type 1 Error, and recall logistic model is still the best in reducing Type 1 Error (shown below with 0 represented by -0.1, and 1 represented by 1.1). So the ensemble model is not necessarily the best. I perfer the logistic model in this application.
+
+```{r}
+table(Holdout.comp[, 1],ensemble.test$Logistic)
+round(prop.table(table(Holdout.comp[, 1],ensemble.test$Logistic),1),2)
+```
+
+
+

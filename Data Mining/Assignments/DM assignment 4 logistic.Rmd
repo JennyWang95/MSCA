@@ -1,0 +1,179 @@
+---
+title: "DM Assignment 4 Logistic"
+author: "Elyse Zhang"
+date: "7/25/2018"
+output:
+  html_document: default
+  word_document: default
+---
+### 1. 
+```{r}
+dataPath = '/Users/Elyse/Documents/UChicago/Courses/Summer 2018/Data Mining/Assignments/Assignment 3'
+German.Credit = read.csv(file=paste(dataPath,"German.Credit.csv",sep="/"),header=TRUE,sep=",")
+str(German.Credit)
+```
+
+```{r}
+for (i in c(1,2,4,5,7:13,15:21))
+  German.Credit[,i] = as.factor(German.Credit[,i])
+str(German.Credit)
+```
+
+
+```{r}
+set.seed(101)
+train.indexes = sample(nrow(German.Credit), size=0.7*nrow(German.Credit))
+
+Train.comp = German.Credit[train.indexes,]
+Holdout.comp = German.Credit[-train.indexes,]
+```
+
+
+### 2. Logistic regression to predict 'Class'
+```{r}
+library(MASS)
+```
+
+```{r}
+glm.full = glm(Creditability~. ,data=Train.comp, family=binomial(link=logit))
+summary(glm.full)
+```
+
+* The full model has AIC = 726.22, we can use stepAIC to find the lowest AIC model
+
+```{r}
+stepAIC(glm.full, direction="backward", trace = FALSE)
+```
+
+* The lowest AIC model is with AIC = 697.9 and it's reproduced here.
+
+```{r}
+glm.predict = glm(formula = Creditability ~ Account.Balance + Duration.of.Credit..month. + 
+    Payment.Status.of.Previous.Credit + Purpose + Credit.Amount + 
+    Value.Savings.Stocks + Instalment.per.cent + Sex...Marital.Status + 
+    Duration.in.Current.address + Foreign.Worker, family = binomial(link = logit), 
+    data = Train.comp)
+```
+
+
+### 4. Confusion Matrix
+```{r}
+predicted.cred = glm.predict$fitted.values
+predicted.cred[predicted.cred >= .5] = 1
+predicted.cred[predicted.cred < .5] = 0
+table(Train.comp$Creditability,predicted.cred)
+```
+
+```{r}
+round(prop.table(table(Train.comp$Creditability,predicted.cred),1),2)
+#prop.table(table(Train.comp$Creditability,predicted.cred),1)
+```
+
+* Type 2 error is low, and Sensitivity/Power is high (0.91). 
+* Type 1 error is too high. This means, when we have predict their credibility to be good (Predict 1), they are actually not (Actual 0). This poses great risk to the company if we lend money to these potential customers. 
+* At the same time, because type 1 error is high, true negative rate or Specificity is low (0.51), again, that means we are bad at detecting customers who has high chance of defaulting. 
+* To solve the problem, we can actually increase the threshold. 
+
+```{r}
+lr.predicted.cred = glm.predict$fitted.values
+lr.predicted.cred[lr.predicted.cred >= .75] = 1
+lr.predicted.cred[lr.predicted.cred < .75] = 0
+table(Train.comp$Creditability,lr.predicted.cred)
+
+round(prop.table(table(Train.comp$Creditability,lr.predicted.cred),1),2)
+```
+
+* I think this result is acceptable. We reduced type 1 error by more than half and improved overall ability to predict the people with bad credibility. We are able to capture better the largest risk which is people who might defaulting
+
+
+### 5. Validation
+
+#### a. Confusion matrix of holdout
+```{r}
+lr.predicted.cred.test = predict(glm.predict, newdata = Holdout.comp, type="response")
+lr.predicted.cred.test[lr.predicted.cred.test >= 0.75]=1
+lr.predicted.cred.test[lr.predicted.cred.test < .75]=0
+
+table(lr.predicted.cred.test,Holdout.comp$Creditability)
+```
+
+```{r}
+round(prop.table(table(Holdout.comp$Creditability,lr.predicted.cred.test),1),2)
+
+#prop.table(table(Holdout.comp$Creditability,predicted.cred.test),1)
+```
+
+
+* Again, result is acceptable. Type 1 error is 0.25, we accurately identified 75% of people who have bad credibiliy and reduced risk for the company.
+* The type 2 error is larger than that of threshold= 0.5 as a sacrifice, but it's acceptable. Meaning we will turn more than 30% good credible customers down suspecting them to be bad creditability. We lose some business and irrate some customer in that sense. 
+* Overall, taking into consideration of the business use case, I think it's a good model with threshold adjusted. 
+
+
+#### b. Gains and ROC
+
+```{r}
+library(gains)
+
+predicted.cred.test = predict(glm.predict, newdata = Holdout.comp, type="response")
+
+(gains.table = gains(as.numeric(Holdout.comp$Creditability)-1, predicted.cred.test,10))
+# (gains.table = gains(as.numeric(Train.comp$Creditability), glm.predict$fitted.values, 10))
+#as.numeric will make it 1 and 2 maybe necessary to -1 to make it 0 and 1
+
+plot(gains.table)
+```
+
+
+```{r}
+library(AUC)
+auc(roc(predicted.cred.test, factor(Holdout.comp$Creditability)))
+
+plot(roc(predicted.cred.test, factor(Holdout.comp$Creditability)))
+abline(h = 0.6634146, col = 'red')
+abline(v = 0.2526316, col = 'blue')
+```
+
+* Gain table is not very useful in that case, the top groups don't have much larger lift than 100, meaning they are not very efficient identifying good credibility. This is probabliy because we are using 1 as good credibility and majority of people do have good credibility. 
+* The mean responses are not excatly monotonically decreasing, but quite close. If we saw exponential decrease, it means this method is efficient. But it's not. 
+* The area under the curve is 0.78, it's not perfect but significantly different from random guesses. By adjusting the threshold from 0.5 to 0.75, I was able to achieve as close to the ideal top left corner as possible (specificity = 1 and sensitivity = 1) on the curve. 
+* Again, taking into consideration of the business use case discussed in part a., I think it's a good model with threshold adjusted. 
+
+
+```{r}
+write.csv(lr.predicted.cred, file = "lr.predicted.cred.csv",row.names=FALSE)
+write.csv(lr.predicted.cred.test, file = "lr.predicted.cred.test.csv",row.names=FALSE)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,230 @@
+---
+title: "Assignment 1"
+author: "Elyse Zhang"
+date: "8/9/2018"
+output: html_document
+---
+
+**1 Data**
+
+```{r}
+dataPath = '/Users/Elyse/Documents/UChicago/Courses/Summer 2018/Data Mining/Assignments/Assignment 3'
+German.Credit = read.csv(file=paste(dataPath,"German.Credit.csv",sep="/"),header=TRUE,sep=",")
+```
+
+```{r}
+for (i in c(1,2,4,5,7:13,15:21))
+  German.Credit[,i] = as.factor(German.Credit[,i])
+str(German.Credit)
+```
+
+**2. Pick Variables**
+
+Model with monetary value as output would usually do better when we do log transformation of the output to make it more normalized.
+```{r}
+library(ggplot2)
+library(gridExtra)
+```
+
+```{r}
+p1 <- ggplot(data = German.Credit, aes(x = Credit.Amount)) +
+  geom_histogram() +
+  labs(title ="Credit.Amount Distribution", x = "Credit.Amount", y = "Number Count")
+
+p2 <- ggplot(data = German.Credit, aes(x = log(Credit.Amount))) +
+  geom_histogram() +
+  labs(title ="Log Credit.Amount Distribution", x = "Log(Credit.Amount)", y = "Number Count")
+
+grid.arrange(p1, p2, ncol =2)
+```
+
+```{r}
+p3 <- ggplot(data = German.Credit, aes(x = Age..years.)) +
+  geom_histogram() +
+  labs(title ="Age Distribution", x = "Age", y = "Number Count")
+
+p4 <- ggplot(data = German.Credit, aes(x = log(Age..years.))) +
+  geom_histogram() +
+  labs(title ="Log Age Distribution", x = "log(Age)", y = "Number Count")
+
+grid.arrange(p3, p4, ncol =2)
+```
+
+```{r}
+train.lm.full = lm(log(Credit.Amount) ~ .+ log(Age..years.) - Age..years., data = German.Credit)
+#summary(train.lm.full)
+```
+
+Use stepwise AIC method to select a model based on the full model
+```{r}
+library(MASS)
+```
+
+```{r}
+train.lm.aic = stepAIC(train.lm.full,data = German.Credit, direction="backward", trace = "F")
+summary(train.lm.aic)
+```
+
+```{r}
+train.lm.final = lm(log(Credit.Amount) ~ Account.Balance + Duration.of.Credit..month. + 
+    Purpose + Value.Savings.Stocks + Instalment.per.cent + Sex...Marital.Status + 
+    Guarantors + Most.valuable.available.asset + Occupation + 
+    Telephone, data = German.Credit)
+#summary(train.lm.final)
+#names(train.lm.final)
+```
+
+* Out of the 20 predictors, AIC selects 10 predictors. We will use these for the following steps.
+
+```{r}
+German.Credit.Use = German.Credit[,c('Credit.Amount','Account.Balance', 'Duration.of.Credit..month.', 'Purpose', 'Value.Savings.Stocks', 'Instalment.per.cent', 'Sex...Marital.Status', 'Guarantors', 'Most.valuable.available.asset', 'Occupation', 'Telephone')]
+```
+
+
+
+**3 Bootstrapping **
+
+```{r}
+Coefs = matrix(0,1000,32) #matrix although we have 10 predictor, some of them have multiple levels, so the coefficients amount associated with them are not 1.
+R.sq.training = numeric(1000) #vector
+R.sq.holdout = numeric(1000) #vector
+nr = nrow(German.Credit.Use)
+niter = 1000
+```
+
+```{r}
+for (i in 1:niter) {
+  train.indexes = sample(nr,0.632*nr)
+  Train.data = German.Credit.Use[train.indexes,]
+  Holdout.data = German.Credit.Use[-train.indexes,]
+  LinMod = lm(log(Credit.Amount) ~ .,data = Train.data)
+  Coefs[i,] = LinMod$coefficients[-1] # Not saving the intercept
+  R.sq.training[i] = summary(LinMod)$r.squared
+  #Predict holdout fitted values
+  R.sq.holdout[i] = cor(Holdout.data$Credit.Amount, predict(LinMod, newdata = Holdout.data))^2
+}
+
+```
+
+
+**4. plot distribution of 3 coefficients**
+
+* Duration.of.Credit..month. was very significant. It was the 4th coefficient
+```{r}
+hist(Coefs[,4],xlab = 'Coefficient of Duration.of.Credit..month', main = 'Histogram of Coefficient of Duration.of.Credit..month')
+```
+
+* Instalment.per.cent was also very significant, they are the 18:20 coefficients
+```{r}
+par(mfrow=c(1,3))
+hist(Coefs[,18],xlab = 'Coefficient of Instalment.per.cent2', main = 'Histogram of Coefficient of Instalment.per.cent2')
+
+hist(Coefs[,19],xlab = 'Coefficient of Instalment.per.cent3', main = 'Histogram of Coefficient of Instalment.per.cent3')
+
+hist(Coefs[,20],xlab = 'Coefficient of Instalment.per.cent4', main = 'Histogram of Coefficient of Instalment.per.cent4')
+```
+
+* Try a less significant predictor Guarantors, 24:25
+```{r}
+par(mfrow=c(1,2))
+hist(Coefs[,24],xlab = 'Coefficient of Guarantors2', main = 'Histogram of Coefficient of Guarantors2')
+
+hist(Coefs[,25],xlab = 'Coefficient of Guarantors3', main = 'Histogram of Coefficient of Guarantors3')
+
+```
+
+**5.	Plot distribution of R squared in train**
+
+```{r}
+par(mfrow=c(1,2))
+hist(R.sq.training,xlab = 'R squared of Training Data', main = 'Histogram of R squared of Training Data')
+
+hist(R.sq.holdout,xlab = 'R squared of Holdout Data', main = 'Histogram of R squared of Holdout Data')
+```
+
+```{r}
+R.sq = cbind.data.frame(R.sq.training = R.sq.training, R.sq.holdout = R.sq.holdout, R.sq.reduction = 100* (R.sq.training - R.sq.holdout)/R.sq.training)
+head(R.sq)
+```
+
+**6. Plot percentage decrease of R square from Train to Holdout**
+
+```{r}
+mean(R.sq$R.sq.reduction)
+hist(R.sq$R.sq.reduction,xlab = 'R squared Reduction', main = 'Histogram of R squared Reduction from Train to Holdout')
+```
+
+* We got normal distributions as expected.
+* We lost 15.5% R.sq from Train to Holdout in Average
+
+**7 and 8, mean and sd of coefficients**
+```{r}
+(Mean.of.Coefficients = apply(Coefs, 2, mean))
+(StanDev.of.Coefficients = apply(Coefs, 2, sd))
+```
+
+**9. Compare the means of the 1000 coefficients to the coefficients from the model created in step 2 **
+
+```{r}
+mean.boot.vs.noboot = cbind.data.frame(mean.boot = apply(Coefs, 2, mean), mean.noboot = train.lm.final$coefficients[-1])
+mean.boot.vs.noboot['perc.difference'] = 100* abs((mean.boot.vs.noboot$mean.boot - mean.boot.vs.noboot$mean.noboot)/mean.boot.vs.noboot$mean.noboot)
+
+head(mean.boot.vs.noboot)
+```
+
+**10 and 11 Confidence Interval**
+
+```{r}
+CI.boot.vs.noboot = cbind.data.frame(boot.lower = Mean.of.Coefficients + qnorm(.025) * StanDev.of.Coefficients, boot.higher = Mean.of.Coefficients + qnorm(.975) * StanDev.of.Coefficients, boot.width.scaled = (qnorm(.975) - qnorm(.025)) * StanDev.of.Coefficients * sqrt(.632), noboot.lower =  summary(train.lm.final)$coefficients[-1,1] + qnorm(.025) * summary(train.lm.final)$coefficients[-1,2]
+, noboot.higher = summary(train.lm.final)$coefficients[-1,1] + qnorm(.975) * summary(train.lm.final)$coefficients[-1,2], noboot.width = (qnorm(.975)-qnorm(.025)) * summary(train.lm.final)$coefficients[-1,2])
+
+head(CI.boot.vs.noboot)
+```
+
+**12 Compare the Width**
+
+True means the CI of bootstrapped results is narrower, False means the bootstrap's with of CI is wider.
+
+```{r}
+CI.boot.vs.noboot['boot.narrow'] = CI.boot.vs.noboot$boot.width.scaled < CI.boot.vs.noboot$noboot.width
+
+table(CI.boot.vs.noboot$boot.narrow)
+```
+
+
+**13. Results**
+
+* Bootstapping resulted in narrower confidence intervals of the all model parameters except for one, which means we have more confidence in the model parameters with bootstrapping method.
+* If we use 0.05 p value from the original model to evaluate if a predictor is significant or not, we can also see, that significant predictors have much smaller mean differences between the bootstrap method and no bootstrap method, also they have even narrower confidence interval than the non-significant ones. 
+* If we try 10000 times for the bootstrapping, the difference would be more significant.
+
+```{r}
+library(dplyr)
+```
+
+```{r}
+mean.boot.vs.noboot['significant'] = summary(train.lm.final)$coefficients[-1,4]< 0.05 
+mean.boot.vs.noboot['CI.ratio'] = CI.boot.vs.noboot$boot.width.scaled/CI.boot.vs.noboot$noboot.width
+
+mean.boot.vs.noboot %>%
+  group_by(significant) %>%
+  summarize(mean.mean.per.difference = mean(perc.difference), mean.ci.ratio = mean(CI.ratio))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

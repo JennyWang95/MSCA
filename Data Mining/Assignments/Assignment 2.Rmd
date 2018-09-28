@@ -1,0 +1,417 @@
+---
+title: "Assignment 2"
+author: "Elyse Zhang"
+date: "7/2/2018"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+```{r}
+library(caret)
+data(GermanCredit)
+```
+
+### 1. Select the numberic variables that you think are appropriare and useful.
+
+```{r}
+str(GermanCredit) 
+summary(GermanCredit)
+```
+
+* We can see that there are a lot of factor variables (binary values) despite it is stored as numerical variables. These binary columns are transformed from categorical variables. There is also a categorical variable not transformed into binary value: Class. 
+* The numerical variables are: **Duration, Amount, InstallmentRatePercentage, ResidenceDuration, Age, NumberExistingCredit, NumberPeopleMaintenance**.
+* But even among these numerical variables, some of them technically can be considered as factor variables: 
+    + InstallmentRatePercentage are integers of 1, 2, 3, and 4. 
+    + ResidenceDuration are integers of 1, 2, 3, and 4. 
+    + NumberExistingCredits are also integers of 1, 2, 3, and 4. 
+    + NumberPeopleMaintenance contains only two integers 1 and 2. 
+* With number of people for maintenance only being 1 and 2, it seems to OK to not include it for the clustering. Plus, it might not be highly correlated with the variables that we are truly interested in, such as amount or installment percentage
+
+### 2. Use kmeans and komeans
+
+### 3. Generate kmeans solution
+**Split the data into two random parts: One for building a k-means solution and second for validating it**
+**Extract 2-10 k-means cluster**
+**Present the VAF**
+**50-100 random starts**
+
+```{r}
+# for kmeans method, split the sample
+set.seed(198)
+train.indexes = sample(nrow(GermanCredit), size=0.632*nrow(GermanCredit))
+
+# partition into training and testing set and only keeps the numeric variables selected in step 1
+
+# Try unscaled and scaled
+train.num.unscaled = GermanCredit[train.indexes,1:6]
+test.num.unscaled = GermanCredit[-train.indexes,1:6]
+
+train.num = scale(GermanCredit[train.indexes,1:6])
+test.num = scale(GermanCredit[-train.indexes,1:6])
+```
+
+```{r}
+kmeans.train.betweenss.unscaled = sapply(2:10, function(z) kmeans(train.num.unscaled, centers = z, nstart = 100)$betweenss)
+
+kmeans.train.totss.unscaled = sapply(2:10, function(z) kmeans(train.num.unscaled, centers = z, nstart = 100)$totss)
+
+(kmeans.train.VAF.unscaled = cbind.data.frame(number.of.clusters = 2:10, kmeans.train.VAF.unscaled = kmeans.train.betweenss.unscaled/kmeans.train.totss.unscaled))
+```
+
+```{r}
+plot(kmeans.train.VAF.unscaled, type = 'b', col = 'green', 
+                xlab = 'Number of clusters',
+                ylab = 'VAF.unscaled')
+```
+**Unscaled data gave us very nice VAF and elbow shape, but it's not real because the variance is dominated by the variable amount. We will be focusing on the scaled dataset.**
+
+```{r}
+kmeans.train.betweenss = sapply(2:10, function(z) kmeans(train.num, centers = z, nstart = 100)$betweenss)
+
+kmeans.train.totss = sapply(2:10, function(z) kmeans(train.num, centers = z, nstart = 100)$totss)
+
+(kmeans.train.VAF = cbind.data.frame(number.of.clusters = 2:10, kmeans.train.VAF = kmeans.train.betweenss/kmeans.train.totss))
+```
+
+### 4. Perform Scree test to choose appropriate number of k means clusters
+### 5. Show the Scree plot
+
+```{r}
+plot(kmeans.train.VAF, type = 'b', col = 'blue', 
+                xlab = 'Number of clusters',
+                ylab = 'Variance Accounted For')
+```
+
+**But for the scaled data's kmeans, it's less obvious to identify the elbow, we may be able to say it's 4 or 5.** 
+
+### 6. Choose 1 k-means solution
+
+**a. Validate and assess R2 of solutions from training and testing subsets**
+```{r}
+# get the centers from the clusters from training dataset
+kmeans.train.centers = sapply(2:10, function(z) kmeans(train.num, centers = z, nstart = 100)$centers)
+# kmeans.train.centers[1]
+```
+
+```{r}
+# repeat step 3
+# Use the centers from the kmeans solution for the training subsample as the starting means for clustering the test subsample into same number of clusters
+
+kmeans.test.betweenss = sapply(1:9, function(z) kmeans(test.num, centers = kmeans.train.centers[[z]], nstart = 100)$betweenss)
+kmeans.test.totss = sapply(1:9, function(z) kmeans(test.num, centers = kmeans.train.centers[[z]], nstart = 100)$totss)
+
+kmeans.test.VAF = cbind.data.frame(number.of.clusters = 2:10, kmeans.test.VAF = kmeans.test.betweenss/kmeans.test.totss)
+
+```
+
+```{r}
+plot(kmeans.test.VAF, type = 'b', col = 'orange', 
+                xlab = 'Number of clusters',
+                ylab = 'Variance Accounted For')
+lines(kmeans.train.VAF, type = 'b', col = 'blue')
+
+legend(x='bottomright',legend = c('Train','Test'), lty = c(1,1), col = c('blue','orange'))
+
+(kmeans.VAF.comparison = cbind.data.frame(number.of.clusters = 2:10, kmeans.train.VAF = kmeans.train.betweenss/kmeans.train.totss, kmeans.test.VAF = kmeans.test.betweenss/kmeans.test.totss))
+```
+
+* **The VAF or R squares are very similar between the solutions of same number of clusters from the Test and Training datasets.**
+* **We will focus on k= 3 to k =5  in section b and c**
+
+
+**b. Interpretability of the segments**
+**c. Observe cluster size similarity of solutions from Train and Test subsamples**
+
+```{r}
+# get the centers of the kmeans for train and test dataset
+kmeans.train.centers = sapply(2:10, function(z) kmeans(train.num, centers = z, nstart = 100)$centers)
+kmeans.test.centers = sapply(1:9, function(z) kmeans(test.num, centers = kmeans.train.centers[[z]], nstart = 100)$centers)
+# get the sizes of kmeans groups
+kmeans.train.size = sapply(2:10, function(z) kmeans(train.num, centers = z, nstart = 100)$size)
+kmeans.test.size = sapply(1:9, function(z) kmeans(test.num, centers = kmeans.train.centers[[z]], nstart = 100)$size)
+```
+
+```{r}
+cbind(k3means.train.centers = kmeans.train.centers[[2]], k3means.test.centers = kmeans.test.centers[[2]])
+```
+
+It's very hard to look at the numbers with both training and testing sets, so we can try to visualize them. Also because we used scale() function in step 3 and resulted in z scores, which is linearly correlated with the original data, we don't have to inverse scale the current centers.
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(gridExtra)
+library(tidyr) #gather function
+```
+
+```{r}
+k3.train.centers = cbind.data.frame(kmeans.train.centers[[2]])
+k3.test.centers = cbind.data.frame(kmeans.test.centers[[2]])
+```
+
+```{r}
+p1 = k3.train.centers %>%                # save it as dataframe
+  mutate(id = factor(row_number())) %>%         # add row number as a variable
+  gather(key,value,-id) %>%                     # reshape dataset
+  ggplot(aes(key, value, group=id, col=id)) +   # plot data by grouping on id
+  geom_point() +                                # add points
+  geom_line() +                                  # add lines
+  ggtitle("Train subset centers") +
+  xlab("Parameters") + ylab("Values") +
+  theme(axis.text.x=element_text(angle = -90, hjust = 0))
+
+p2 = k3.test.centers %>%                # save it as dataframe
+  mutate(id = factor(row_number())) %>%         # add row number as a variable
+  gather(key,value,-id) %>%                     # reshape dataset
+  ggplot(aes(key, value, group=id, col=id)) +   # plot data by grouping on id
+  geom_point() +                                # add points
+  geom_line() +                                  # add lines
+  ggtitle("Test subset centers") +
+  xlab("Parameters") + ylab("Values") +
+  theme(axis.text.x=element_text(angle = -90, hjust = 0))
+
+grid.arrange(p1, p2, ncol =2)
+```
+
+
+For k = 3, we have:
+* One group in red with higher credit amount, longer credit duration and lowest installment Rate percentage. We can call them **Long term large size credit**
+
+* One group in green characterized with oldest age, highest Number Existing Credits and highest number years of residence duration. We can call them **older residence customer**
+
+* The last group in green has lowest credit amount, as well as youngest age, least number of existing credit and shortest residence duration. **younger and new customer**
+
+We can also use Pareto chart (qcc package) to visualize the cluster sizes and look at the similarities of solutions from Train and Test sub samples
+```{r}
+#install.packages('qcc')
+library(qcc)
+```
+
+```{r}
+#par(mfrow = c(1, 2))
+pareto.chart(unlist(kmeans.train.size[2]), xlab = 'train group indentification', ylab = "train group percentage", main = 'train subset group Pareto plot (k=3)')
+pareto.chart(unlist(kmeans.test.size[2]), xlab = 'test group indentification', ylab = "test group percentage", main = 'test subset group Pareto plot (k=3)')
+```
+
+* **Cluster sizes are not very even among the three groups. Also, it does not correlates well between training and testing subsets. **
+
+```{r}
+k4.train.centers = cbind.data.frame(kmeans.train.centers[[3]])
+k4.test.centers = cbind.data.frame(kmeans.test.centers[[3]])
+```
+
+```{r}
+p3 = k4.train.centers %>%                # save it as dataframe
+  mutate(id = factor(row_number())) %>%         # add row number as a variable
+  gather(key,value,-id) %>%                     # reshape dataset
+  ggplot(aes(key, value, group=id, col=id)) +   # plot data by grouping on id
+  geom_point() +                                # add points
+  geom_line() +                                  # add lines
+  ggtitle("KMEANS Train subset centers") +
+  xlab("Parameters") + ylab("Values") +
+  theme(axis.text.x=element_text(angle = -90, hjust = 0))
+
+p4 = k4.test.centers %>%                # save it as dataframe
+  mutate(id = factor(row_number())) %>%         # add row number as a variable
+  gather(key,value,-id) %>%                     # reshape dataset
+  ggplot(aes(key, value, group=id, col=id)) +   # plot data by grouping on id
+  geom_point() +                                # add points
+  geom_line() +                                  # add lines
+  ggtitle("Test subset centers") +
+  xlab("Parameters") + ylab("Values") +
+  theme(axis.text.x=element_text(angle = -90, hjust = 0))
+
+grid.arrange(p3, p4, ncol =2)
+```
+
+For k = 4, we have:
+* One group in blue with higher credit amount, longer credit duration. They are **Long term large size credit customer**
+
+* One group in purple with oldest age, highest existing credit and longest residence duration. **older residence customer**
+
+* One group in red characterized as highest in Rate percentage and lowest in residence duration and age. They are unfortunately labeled as **poorer young people**
+
+* The last group in green has lowest installment rate percentage. **Customers who can pay debt easily**
+
+```{r}
+pareto.chart(unlist(kmeans.train.size[3]), xlab = 'train group indentification', ylab = "train group percentage", main = 'train subset group Pareto plot (k=4)')
+pareto.chart(unlist(kmeans.test.size[3]), xlab = 'test group indentification', ylab = "test group percentage", main = 'test subset group Pareto plot (k=4)')
+```
+
+* The cluster sizes are still not quite even among the clusters, but this round of cluster correlates between training and testing subsets reasonably well. 
+
+```{r}
+k5.train.centers = cbind.data.frame(kmeans.train.centers[[4]])
+k5.test.centers = cbind.data.frame(kmeans.test.centers[[4]])
+```
+
+```{r}
+p5 = k5.train.centers %>%                # save it as dataframe
+  mutate(id = factor(row_number())) %>%         # add row number as a variable
+  gather(key,value,-id) %>%                     # reshape dataset
+  ggplot(aes(key, value, group=id, col=id)) +   # plot data by grouping on id
+  geom_point() +                                # add points
+  geom_line() +                                  # add lines
+  ggtitle("Train subset centers") +
+  xlab("Parameters") + ylab("Values") +
+  theme(axis.text.x=element_text(angle = -90, hjust = 0))
+
+p6 = k5.test.centers %>%                # save it as dataframe
+  mutate(id = factor(row_number())) %>%         # add row number as a variable
+  gather(key,value,-id) %>%                     # reshape dataset
+  ggplot(aes(key, value, group=id, col=id)) +   # plot data by grouping on id
+  geom_point() +                                # add points
+  geom_line() +                                  # add lines
+  ggtitle("Test subset centers") +
+  xlab("Parameters") + ylab("Values") +
+  theme(axis.text.x=element_text(angle = -90, hjust = 0))
+
+grid.arrange(p5, p6, ncol =2)
+```
+
+For k = 5, we have:
+* One group in blue with higher credit amount, longer credit duration. They are **Long term large size credit customer**
+
+* One group in olive with oldest age, and longest residence duration. **older residence customer**
+
+* One group in purple has highest existing credit. **Exsisting customer**
+
+* One group in green characterized as highest in Rate percentage and lowest in age, existing credit and almost shortest residence duration. They are **young and new customers**
+
+* The last group in red has lowest installment rate percentage. **Customers who can pay debt easily**
+
+```{r}
+pareto.chart(unlist(kmeans.train.size[4]), xlab = 'train group indentification', ylab = "train group percentage", main = 'train subset group Pareto plot (k=5)')
+pareto.chart(unlist(kmeans.test.size[4]), xlab = 'test group indentification', ylab = "test group percentage", main = 'test subset group Pareto plot (k=5)')
+```
+
+* **The k=5 cluster sizes are more even, but they did not correlates very well among the training and testing datasets.**
+
+
+**Summary**
+* **VAF or R squared correlates very well between solutions from trainig and testing datasets**
+
+* **Overall speaking, it's easier to interpret groups with smaller k. In this case k=3 and 4 segmentations are easier to interpret and understand, compared to k = 5**
+
+* **As can be seen, cluster sizes are more even when k is larger, but the sizes do not correlates among testing and training datasets very well.**
+
+* **Based on these criteria, we can choose k = 4**
+
+### 7. Generate 3-5 komeans clusters
+
+```{r}
+source('komeans.R')
+```
+
+```{r}
+komeans.VAF = sapply(3:5, function(z) komeans(train.num, nclust = z, lnorm = 2, tolerance = 0.001, nloops = 100, seed = 3)$VAF) # since it's running iteration and takes longer than kmeans, why do we say it's better than regular k-means
+```
+
+```{r}
+cbind.data.frame(number.of.clusters = 3:5, kmeans.train.VAF = kmeans.train.betweenss[2:4]/kmeans.train.totss[2:4], komeans.VAF = komeans.VAF)
+```
+
+* VAF from overlapping k-means clustering is generally higher than that of regular k-means clustering
+
+### 8. Compare the chosen k-means solution with komeans solution from interpretation perspective
+
+```{r}
+komeans4.result = komeans(train.num, nclust = 4, lnorm = 2, tolerance = 0.001, nloops = 100, seed = 3)
+```
+
+Restore centers of the komeans result
+```{r}
+komeans4.groups = cbind.data.frame(komeans4.result$Normalized.Data,komeans4.result$Group)
+komeans4.all.centers= data.frame(t(cbind.data.frame(sapply(1:15,function (z) colMeans(komeans4.groups[komeans4.result$Group == z,])))))
+komeans4.all.centers = komeans4.all.centers[,-7]
+```
+
+```{r}
+cbind.data.frame(cluster.identification = 1:15, size.cluster = sapply(1:15,function (z) length(which(komeans4.result$Group == z))))
+```
+
+* We can see that groups 1, 5, 9, 13 have the largest number of rows. 
+
+```{r}
+komeans4.all.centers %>%                # save it as dataframe
+  mutate(id = factor(row_number())) %>%         # add row number as a variable
+  gather(key,value,-id) %>%                     # reshape dataset
+  ggplot(aes(key, value, group=id, col=id)) +   # plot data by grouping on id
+  geom_point() +                                # add points
+  geom_line() +                                  # add lines
+  ggtitle("KOMEANS 4 all subset centers") +
+  xlab("Parameters") + ylab("Values") +
+  theme(axis.text.x=element_text(angle = -90, hjust = 0))
+```
+
+```{r}
+komeans4.four.centers = komeans4.all.centers[c(1,5,9,13),]
+
+komeans4.four.centers %>%                # save it as dataframe
+  mutate(id = factor(row_number())) %>%         # add row number as a variable
+  gather(key,value,-id) %>%                     # reshape dataset
+  ggplot(aes(key, value, group=id, col=id)) +   # plot data by grouping on id
+  geom_point() +                                # add points
+  geom_line() +                                  # add lines
+  ggtitle("KOMEANS 4 four largest subset centers") +
+  xlab("Parameters") + ylab("Values") +
+  theme(axis.text.x=element_text(angle = -90, hjust = 0))
+```
+
+* Unfortunately the largest sized groups are not representing of the whole training data set, we missed lot of information because Cluster 1 and 9 are essentially identical. Instead of using the restored means, I choose use Centroids attribute from the komeans function.
+
+```{r}
+(komeans4.centroids = komeans(train.num, nclust = 4, lnorm = 2, tolerance = 0.001, nloops = 100, seed = 3)$Centroids)
+```
+
+```{r}
+colnames(komeans4.centroids) = colnames(test.num)[1:6]
+komeans4.centroids = data.frame(komeans4.centroids)
+```
+
+```{r}
+p8 = komeans4.centroids %>%                # save it as dataframe
+  mutate(id = factor(row_number())) %>%         # add row number as a variable
+  gather(key,value,-id) %>%                     # reshape dataset
+  ggplot(aes(key, value, group=id, col=id)) +   # plot data by grouping on id
+  geom_point() +                                # add points
+  geom_line() +                                  # add lines
+  ggtitle("KOMEANS Train subset centroids") +
+  xlab("Parameters") + ylab("Values") +
+  theme(axis.text.x=element_text(angle = -90, hjust = 0))
+
+grid.arrange(p3, p8, ncol =2)
+```
+
+For the komeans with k =4, 
+* The green group is similar to the blue group in kmeans with with higher credit amount and longer credit duration. But they also have has lowest installment rate percentage. They are **Long term large size credit lowest installment percentage customer**
+
+* We have a blue group that has highest existing credit, they are not present in kmeans clusters, they are **Existing customers**
+
+* One group in purple with oldest age and longest residence duration. **older residence customer** This group and the blue group together are like the purple group with kmeans method. 
+
+* One group in red characterized as highest in Rate percentage and lowest in residence duration and age. They are unfortunately labeled as **poorer young people**
+
+* The last group in red has youngest age, lowest loan amount and shortest time, they are also having least existing credit and shortest residence time. They are **New comers with small credit**
+
+### 9. Summarize results and interpret the solution you choose as your final solution
+* I found komeans with k=4 is easier to interpret than kmeans when k =4, it also have VAF larger than kmeans VAF. So I chose the komeans method with k = 4 as our final solution
+
+### 10.
+**a. what approach will you take to recruit people over phone**
+* Stratified sampling based on area code in interested areas
+* Carefully ask questions to put them into segments
+* Gage their interest in participating the focus group /A&U studies
+* Select 30+ people for each group
+* Second call to these selected people to confirm time/location and their availability
+
+**b. Which of the customers will you try to recuit**
+* Interest in participate but unbiased
+* Demographically diverse
+
+**How would you identify if a new recruit belongs to a particular segmentation**
+* Age
+* Existing credits and their durations and amounts
+* Interest of their current credits

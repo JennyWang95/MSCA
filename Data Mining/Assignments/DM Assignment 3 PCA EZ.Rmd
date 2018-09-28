@@ -1,0 +1,176 @@
+---
+title: "DM Assignment 3 PCA EZ"
+author: "Elyse Zhang"
+date: "7/20/2018"
+output:
+  html_document: default
+  word_document: default
+---
+
+```{r}
+library(caret)
+data("GermanCredit")
+```
+
+### 1. Split samples
+```{r}
+set.seed(101)
+train.indexes = sample(nrow(GermanCredit), size=0.7*nrow(GermanCredit))
+
+gc.train = GermanCredit[train.indexes,1:7]
+gc.test= GermanCredit[-train.indexes,1:7]
+```
+
+* For training set, data can be scaled using scale() or in prcomp() functions. 
+* For test dataset, the scaling is done differently. We want to prevent information from “leaking” into the test set, so we pretend like we are only observing one test observation at a time – trying to mimic real life situation.
+
+```{r}
+train.mean = apply(gc.train,2,mean)
+train.sd = apply(gc.train,2,sd)
+
+gc.test.scaled = gc.test
+
+for (i in 1:length(gc.test$Duration)){
+  gc.test.scaled[i,] = (gc.test[i,]-train.mean)/train.sd
+}
+
+```
+
+
+### 2. Perform pca
+in the prcomp scale= true is scaling dataset using z-score
+```{r}
+pca.result = prcomp(gc.train,scale=TRUE) 
+plot(pca.result)
+```
+
+
+### 3. Scree plot
+```{r}
+cumsum(pca.result$sdev^2/sum(pca.result$sdev^2))
+plot(cumsum(pca.result$sdev^2/sum(pca.result$sdev^2)),type = 'b', col = 'blue', 
+                xlab = 'Number of Principal Component',
+                ylab = 'Variance Accounted For')
+```
+
+* Components that are above or around 1 are 1,2,3,4. So 5,6,7 are in fact not as powerful as original predictors
+* Elbow seems to be appear at 6th component.
+* Taking into consideration of both, I chose 5 components, it has reasonably good R squared 0.8606974.
+
+### 4. Plot Component 1 against other components
+```{r}
+#pca.result$rotation
+# biplot(pca.result$x,pca.result$rotation, cex=0.6) 
+biplot(pca.result$x[1:100,c(1,2)],pca.result$rotation[,c(1,2)], cex=0.6) # 100 ppl make figure easy to read
+
+# why - sign on the course slide
+# rotation is loading
+```
+
+```{r}
+#par(mfrow = c(1, 2))
+biplot(pca.result$x[1:100,c(1,3)],pca.result$rotation[,c(1,3)], cex=0.6) 
+#biplot(pca.result$x[1:100,c(2,3)],pca.result$rotation[,c(2,3)], cex=0.6) 
+```
+
+```{r}
+biplot(pca.result$x[1:100,c(1,4)],pca.result$rotation[,c(1,4)], cex=0.6) 
+```
+
+```{r}
+par(mfrow = c(1, 2))
+biplot(pca.result$x[1:100,c(1,5)],pca.result$rotation[,c(1,5)], cex=0.6) 
+biplot(pca.result$x[1:100,c(4,5)],pca.result$rotation[,c(4,5)], cex=0.6) 
+```
+
+
+**Interpret and Name Components**
+* Component 1 is associated with high amount and high duration with low installment percentage. We can name it as **low interest long term big loan**
+* Component 2 is associated with Short residence duraction, very young age and number of exsiting credit.  We can name it as **older exsisting customers**
+* Component 3 is associated with very low installment percentag, and relatively high number of maintenance ppl. We can name them **lower interest loan**
+* Component 4 is associated with high installment percentage, large number of exsiting credit, high number of maitenance but Short residence duraction and younger age. We can call them **active existing customers with lower disposable income**
+* Component 5 is associated with low installment percentage and number of maitenance ppl and large number of exsiting credit**active existing customers with higher disposable income**
+
+
+### 5 Component loadings are orthogonal
+```{r}
+round(t(pca.result$rotation) %*% pca.result$rotation,2)
+```
+
+The dot product have all 0 on non diagonal elements. 
+
+**6 Component scores are orthogonal**
+```{r}
+round(cov(pca.result$x),2)
+round(cor(pca.result$x),2)
+round(t(pca.result$x) %*% pca.result$x ,2)
+```
+
+Covariance, correlation matrix, and the dot product have all 0 on non diagonal elements. 
+
+
+### 7. Perform holdout validation
+#### 7.1. Predict component scores in the houdout. 
+
+```{r}
+predicted.score = predict(pca.result, newdata = gc.test)
+```
+
+#### 7.2. 
+
+```{r}
+predicted.test= round(predicted.score[,1:5] %*% t(pca.result$rotation[,1:5]),2) #automatically scaled
+head(predicted.test) 
+```
+
+predicted test are automatically scaled
+
+
+### 8. Compute R squared for holdout sample 
+
+```{r}
+cor(data.frame(as.vector(t(gc.test.scaled)),as.vector(t(predicted.test))))
+```
+
+```{r}
+cor(as.vector(t(gc.test.scaled)),as.vector(t(predicted.test)))^2 
+# You can try as.vector(t(test)). Please note that, if you want to do it by columns you should use unlist(test).
+```
+* correlation matrix show these two datasets are highly correlated. R squared is calculated as around 0.8454631
+* Since our R squared for trainingset was 0.8606974 . The holdout validation can be considered good. 
+
+### 9.	Use varimax() to rotate the loadings
+```{r}
+rotated = varimax(pca.result$rotation[,1:5])
+
+(rotated.loadings = rotated$loadings)
+
+```
+
+
+### 10. Plot rotated loadings 1 vs 2 and 3. 
+```{r}
+par(mfrow = c(1, 2))
+biplot(pca.result$x[1:100,c(1,2)],rotated.loadings[,c(1,2)], cex=0.6) 
+biplot(pca.result$x[1:100,c(1,2)],pca.result$rotation[,c(1,2)], cex=0.6)
+
+```
+
+
+```{r}
+par(mfrow = c(1, 2))
+biplot(pca.result$x[1:100,c(1,3)],rotated.loadings[,c(1,3)], cex=0.6) 
+biplot(pca.result$x[1:100,c(1,3)],pca.result$rotation[,c(1,3)], cex=0.6)
+
+```
+
+* Rotated loadings 1 vs. 2 and 1 vs.3 did explain things slightly better and cleared less important predictors out of the way. 
+* Overall speaking, PCA for the dataset's numerical value is not very helpful. The main goal of PCA is dimension reduction, in this this case, we were only able to reduce dimension by one or two to reach a reasonably good variance account for, and render a good prediction.  
+
+
+
+
+
+
+
+

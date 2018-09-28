@@ -1,0 +1,139 @@
+---
+title: "Assignment 3"
+author: "Elyse Zhang"
+date: "7/13/2018"
+output:
+  html_document: default
+  word_document: default
+---
+
+```{r}
+dataPath = '/Users/Elyse/Documents/UChicago/Courses/Summer 2018/Data Mining/Assignments/Assignment 3'
+
+German.Credit = read.csv(file=paste(dataPath,"German.Credit.csv",sep="/"),header=TRUE,sep=",")
+
+```
+
+### 1. LCA
+Choose variables that are on the same scale.
+```{r}
+str(German.Credit) 
+```
+
+```{r}
+summary(German.Credit)
+```
+
+* Relevant and relatively balanced categorical variables for market segmentations are: Account.Balance, Sex & Marital Status, Most valuable available asset, Type of apartment. These are columns 2, 10, 13, 16. 
+
+```{r}
+set.seed(198)
+train.indexes = sample(nrow(German.Credit), size=0.632*nrow(German.Credit))
+#German.Credit$Creditability = German.Credit$Creditability+1  # because LCA only take in 1 and larger number
+```
+
+
+```{r}
+train.gc = German.Credit[train.indexes,]
+test.gc = German.Credit[-train.indexes,]
+train.ms = German.Credit[train.indexes,c(2,10, 13, 16)]
+test.ms = German.Credit[-train.indexes,c(2,10, 13, 16)]
+```
+
+### 2 Determine 2:k clustering solutions, use AIC as criteria.
+
+From Assignment 2, we learned that larger ks are very hard to intepret, so we will stick with k = 2:6. 
+
+```{r}
+library(poLCA)
+```
+
+
+```{r}
+#?poLCA( )
+f1 = cbind(Account.Balance, Sex...Marital.Status, Most.valuable.available.asset, Type.of.apartment) ~ 1
+
+AIC = rep(0, 5)
+BIC = rep(0, 5)
+```
+
+
+```{r}
+for (k in 2:6){
+   LCA.results=poLCA(f1,train.gc,nclass=k,nrep=20,tol=.001,verbose=FALSE, graphs=FALSE)
+   AIC[k-1] = LCA.results$aic
+   BIC[k-1] = LCA.results$bic
+}
+
+ic = cbind.data.frame(k = 2:6, AIC= AIC, BIC = BIC)
+```
+
+
+```{r}
+plot(2:6, ic$AIC, type = 'b', col = 'blue', ylim=c(5200,5700),
+                xlab = 'Number of classes',
+                ylab = 'AIC or BIC')
+
+lines(2:6, ic$BIC, type = 'b', col = 'red')
+
+legend(x='topright',legend = c('AIC','BIC'), lty = c(1,1), col = c('blue','red'))
+
+```
+
+* Class = 3 seems to be good, as AIC does not decrease significantly anymore the AIC is 5332
+* It's also the elbow point for BIC, which is 5488
+
+```{r}
+set.seed(198)
+LCA.results.3=poLCA(f1,train.gc,nclass=3,nrep=20,tol=.001,verbose=FALSE, graphs=TRUE)
+```
+
+```{r}
+LCA.results.3$probs
+```
+
+**Interpretation**
+The data description from the following website is more specific to the csv file.
+https://onlinecourses.science.psu.edu/stat857/node/222/ 
+
+* Class 1 size is about 12% of the training set. They are likely having no running account or no balance or debit (~45% probability of having Account Balance = 1 and 33% probability of having Account Balance  =2 ), very likely to be male: single (66% Sex...Marital.Status = 2), and free apartment (almost 100%).They may have some kind of valuble proberty, but they probably don't have Ownership of house or land (8% of Most.valuable.available.asset = 4). They can be labeled as **poor single people**
+
+* Class 2 size is about 12% of the training set. we cannot say anything about their account balance. They are likely to be married / widowed male (79%), They highly likely have Ownership of house or land (95%), and they own and occupied house(apartment)  (83%). **Married house owner**
+
+* Class 3 size is larger 76%, they are likely to have slightly higher account balance (44% of account balance = 4), more likely to be married / widowed male (55%) or single male (29%). They are very similar to class 1 in that they may have some kind of valuble proberty, but they probably don't have Ownership of house or land (2% of Most.valuable.available.asset = 4). They rent apartment (93% probability type of apartment = 2) **Renters**
+
+### 3. Perform holdout validarion on optimal solution
+
+Perform validation for class size = 3 with the starting probability being probs from previous optimal train solution. 
+```{r}
+set.seed(198)
+LCA.test.3 = poLCA(f1,test.gc,nclass=3, probs.start = LCA.results.3$probs, nrep=20,tol=.001,verbose=FALSE, graphs=TRUE)
+```
+
+```{r}
+LCA.test.3$probs
+```
+
+* In test validation, Class 1 and class 2 switched places.
+* Similarity of relative class size. In training data, the sizes are roughly 12%, 12%, 76%, in testing data, the sizes are roughly 0.16, 0.19, 0.65% . They are reasonably close. 
+* From the conditional probabilities persepctive, the validation proved that the LCA solution from training dataset applies to the testing set.  Class 2(test) are categorized by free apartment (96%) and single male(60%) as Class 1(train). Class 1(test) are categorized by being married / widowed male (78%) and own a place (98%), which is the same as class 2 in training set. Finally testing data class 3 is categorized by renting a place (99%). 
+
+
+### 4. Intepretatin, additional comments
+* Stability of of the LCA good based on relative group size and conditional probability, as well as the graph based on conditional probability
+* Overall it's quite easy to intepret the results from LCA. And having 65-75% of the population renting house is a pretty good estimation. 
+* On adequacy, there's very few people 4.7% in Account balance = 3, so the initial categorization could take into consideration of that and group them otherwise. There is also very few female representation in this dataset (~8%), we couldn't do better on the gender differences.
+
+
+### 5. Similarity and differences between clustering solution and LCA solution
+* In k means or komeans clustering, we used numerical data and focused more on loan information. Whereas here we focused on the person's status as potential/current customers. There is not too much similarities or differences to draw from.
+
+* One overlapping point is perhaps age. We had a group from k-means with highest in Rate percentage and lowest in residence duration and age. They were labeled as **poorer young people**, here in LCA we have a group called **poor single people**.  They probabily are similar. 
+
+
+
+
+
+
+
+

@@ -1,0 +1,129 @@
+---
+title: "DM Assignment 5 Cluster Reg"
+author: "Elyse Zhang"
+date: "8/9/2018"
+output: html_document
+---
+**Question 1**
+```{r }
+source('clustreg.R')
+source('clustreg.predict.R')
+```
+
+```{r}
+library('caret')
+data("GermanCredit")
+```
+
+```{r}
+German.Credit.num = GermanCredit[,c(2,1,3:7)]
+```
+
+```{r}
+set.seed(101)
+train.indexes = sample(nrow(German.Credit.num), size=0.7*nrow(German.Credit.num))
+
+Train.num = German.Credit.num[train.indexes,]
+Holdout.num = German.Credit.num[-train.indexes,]
+```
+
+
+**Question 2**
+**a and b**
+```{r}
+Train.clustreg.1 = clustreg(Train.num,1,1,129,1)
+Train.clustreg.2 = clustreg(Train.num,2,2,129,10)
+Train.clustreg.3 = clustreg(Train.num,3,2,129,10)
+```
+
+**c**
+```{r}
+rsq.best.train = cbind(Train.clustreg.1$rsq.best,Train.clustreg.2$rsq.best,Train.clustreg.3$rsq.best)
+plot(1:3,rsq.best.train, xlab = 'Num of Clusters', ylab = 'Best R squared', type = 'l')
+```
+
+* Cluster number k = 2 is the elbow point and can be chosen as our optimal cluster number
+
+
+**Question 3 Holdout Validation**
+```{r}
+clustreg.validation.1 = clustreg.predict(Train.clustreg.1, Holdout.num)
+clustreg.validation.2 = clustreg.predict(Train.clustreg.2, Holdout.num)
+clustreg.validation.3 = clustreg.predict(Train.clustreg.3, Holdout.num)
+```
+
+```{r}
+rsq.test = cbind(clustreg.validation.1$rsq,clustreg.validation.2$rsq,clustreg.validation.3$rsq)
+```
+
+**4 Choose a model**
+```{r}
+plot(1:3,rsq.best.train, xlab = 'Num of Clusters', ylab = 'Best R squared', type = 'l',ylim = c(0.4,0.9))
+lines(1:3,rsq.test,col = 'blue')
+legend('topleft',legend=c("Train Best R squared", "Test R squared"),
+       col=c("black", "blue"), lty=1)
+```
+
+```{r}
+Rsquared = cbind.data.frame(rsq.best.train = rbind(Train.clustreg.1$rsq.best,Train.clustreg.2$rsq.best,Train.clustreg.3$rsq.best),  rsq.test = rbind(clustreg.validation.1$rsq,clustreg.validation.2$rsq,clustreg.validation.3$rsq))
+
+Rsquared['reduction'] = (Rsquared$rsq.best.train - Rsquared$rsq.test)/Rsquared$rsq.best.train
+
+Rsquared
+```
+
+* Elbow points shown in Cluster = 2 for both Training and Testing
+* % decrease or % reduction is not extremely high for k = 2 and 3, and the R squared of the test data is acceptable. 
+
+
+**Question 5 Summarize and Intepretation**
+
+Look at the ratio of group in training sample and testing sample
+```{r}
+table((Train.clustreg.2$cluster))
+round(prop.table(table((Train.clustreg.2$cluster))),2)
+```
+
+```{r}
+table((clustreg.validation.2$cluster))
+round(prop.table(table((clustreg.validation.2$cluster))),2)
+```
+
+Model summary
+```{r}
+Train.clustreg.2$results
+```
+
+```{r}
+train.cluster1.index = which(Train.clustreg.2$cluster == 1)
+test.cluster1.index = which(clustreg.validation.2$cluster == 1)
+```
+
+```{r}
+train.centers = rbind.data.frame(colMeans(Train.num[train.cluster1.index,]), colMeans(Train.num[-train.cluster1.index,]))
+colnames(train.centers) = colnames(Train.num)
+
+train.centers
+```
+
+```{r}
+holdout.centers = rbind.data.frame(colMeans(Holdout.num[test.cluster1.index,]), colMeans(Holdout.num[-test.cluster1.index,]))
+colnames(holdout.centers) = colnames(Holdout.num)
+
+head(holdout.centers)
+```
+
+* Train and test group size ratio are close, showing model stability
+
+* For the first cluster,Duration, InstallmentRatePercentage and Age are significant, For the second cluster, the three predictors plus NumberExistingCredits, total four are significant. 
+
+* For larger sized cluster 1, each unit increase of Duration increase Credit Amount by 122.2 DM, each unit increase of InstallmentRatePercentage decrease Credit Amount by 602.5 DM and each unit increase in Age would increase Credit Amount by 12.69 DM;  In comparison, Cluster 2 has really higher sensitivity of all these variables, with each unit of increase in Duration, InstallmentRatePercentage or Age, the increase or decrease of the Credit Amount are larger than in Cluster 2. Also it has another significant predictor: NumberExistingCredits, with each increase of NumberExistingCredits, the Credit Amount decrease by 682.43 DM.
+
+* Looking at the centers of the clusters. Cluster 2 have much higher mean Amount (dependent variable) than Cluster 1. They also have lower Installment Rate, slightly younger Age, and higher NumberExistingCredits. 
+
+
+
+
+
+
+
