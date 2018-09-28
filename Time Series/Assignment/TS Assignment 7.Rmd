@@ -1,0 +1,198 @@
+---
+title: "TS Assignment 7"
+author: "Elyse Zhang"
+date: "8/4/2018"
+output:
+  word_document: default
+  html_document: default
+---
+
+**Question 1:**
+```{r}
+load("~/Documents/UChicago/Courses/Summer 2018/Time Series/Assignment/Assignment 7/motel.rda")
+plot(motel)
+
+#you are given 1) the total monthly takings from accommodation. 2) the monthly total room nights occupied at hotels, motels, and guest houses in Victoria, Australia, 3) and the monthly Consumer Price Index (CPI) between January 1980 and June 1995
+
+#Total monthly takings are in thousands of Australian dollars, total room nights occupied are in thousands. 
+```
+
+**a) Plot the CPI and Cost time series**
+```{r}
+#colnames(motel)
+Cost = motel[,2]*1000/motel[,1]
+plot(Cost,ylim = c(20,130),xlab="Time", ylab='AUS dollar')
+lines(motel[,3],col = 'blue')
+legend("topleft",legend=c("Average cost of a night’s accommodation",'monthly Consumer Price Index (CPI)'),col=c('black','blue'),lty = 1)
+```
+
+**b) Plot the Cost time series against the CPI time series and Correlation**
+```{r}
+plot(x = motel[,3], y = Cost, xlab="CPI in AUS dollar", ylab='Average cost of night’s accommodation in AUS dollar' )
+cor(motel[,3],Cost)
+```
+
+* The correlation between CPI and Cost is 0.9907
+* From the plot in part a), we can see that although there is no significant outliers, both plot show decreasing variation during 1990 to 1995. To stablize variation, we can take logarithms of both variables. 
+
+
+```{r}
+plot(x = log(motel[,3]), y = log(Cost), xlab="log(CPI in AUS dollar)", ylab='log(Average cost of night’s accommodation in AUS dollar)' )
+cor(log(motel[,3]),log(Cost))
+```
+
+* The correlation between the logarithms of both CPI and Cost is 0.993. We improved their linearity.
+
+
+**Question 2**
+```{r}
+library(forecast)
+```
+
+**a) Use the linear model with time series components function tslm() to fit a linear model**
+
+```{r}
+log.tslm = tslm(Cost ~ log(motel[,3]), lambda = 0 )
+summary(log.tslm)
+```
+
+**b) Plot log(CPI) against log(Cost) and the fitted trend**
+
+```{r}
+plot(x = log(motel[,3]), y = log(Cost), xlab="log(CPI in AUS dollar)", ylab='log(Average cost of night’s accommodation in AUS dollar)')
+
+points(log(motel[,3]), log(log.tslm$fitted.values),col = 'orange')
+```
+
+**Use the summary() function to summarize the generated model , and the checkresiduals() function to evaluate the residuals.**
+
+```{r}
+summary(log.tslm)
+checkresiduals(log.tslm)
+pacf(log.tslm$residuals, lag.max = 36)
+```
+
+* Residual is not random, as time progresses, it rises then falls.
+* The Breusch-Godfrey test is similar to Ljung-Box but specific for regression models. Null hypothesis is that the residuals are random. The p-value 2.2e-16 indicates there is still significant autocorrelation remaining in the residuals.
+* ACF and PACF of residuals also show P = 1, s = 12 autoregression (spikes at lag 12 in PACF). ACF and PACF of differentiated residuals also show some trend other than the seasonal AR.
+
+```{r}
+acf(diff(log.tslm$residuals, lag.max = 36))
+pacf(diff(log.tslm$residuals, lag.max = 36))
+```
+
+
+**Question 3**
+Use the auto.arima() function to fit an appropriate regression model with ARIMA errors to the CPI time series. Set the Order of seasonal-differencing argument, D, to 1 and the ‘lambda’ argument to 0 to reflect a logarithmic transformation.
+```{r}
+Reg.arimaerror = auto.arima(Cost, xreg = log(motel[,3]), seasonal = TRUE, D = 1, lambda = 0, allowdrift = TRUE)
+```
+
+**a) Use the summary() function to summarize the generated model.**
+```{r}
+summary(Reg.arimaerror)
+```
+
+* The model output show that our regression line is $log(Cost^{~t~}) = \0.8999*log(CPI^{~t~}) + n^{~t~}$ with $n^{~t~}$ being a ARIMA(0,1,1)(1,1,1)[12] process.
+
+**b) Use the checkresiduals() function to evaluate the residuals.**
+```{r}
+checkresiduals(Reg.arimaerror)
+pacf(Reg.arimaerror$residuals)
+```
+
+* Ljung-Box test show smaller p value 0.275. We can accept null hypothesis that the residuals are random. 
+* The ACF and PACF looked reasonably ok. 
+
+**Question 4:**
+**a) Calculate and plot a naïve forecast of CPI for the next 18 months**
+```{r}
+naive.forecast.cpi = naive(motel[,3], 18)
+naive.forecast.cpi$mean[1]
+plot(naive.forecast.cpi)
+```
+
+**b) Forecast and plot the average price per room (i.e., Cost) **
+Forecast and plot the average price per room (i.e., Cost) for the next 18 months using the fitted model from Question 3 and the naïve forecast of CPI
+```{r}
+forecast.cost = forecast(Reg.arimaerror,xreg = log(naive.forecast.cpi$mean),h = 18)
+plot(forecast.cost)
+```
+
+* Naïve forecast of CPI for the next 18 months is 116.2
+* with the regression with arima error model in Part 3, and the Naive forecast of CPI, we can expect the Cost to be level, but with seasonal variation. 
+
+
+**Question 5:**
+```{r}
+library(vars)
+```
+
+**Optional: VARselect**
+```{r}
+VARselect(cbind(log(Cost),log(motel[,3])))
+```
+
+* VAR(10) selected by the AIC and criteria the VAR(7) selected by the BIC.
+
+
+**a) VAR(7) Model**
+Use the VAR() function to fit a VAR(7) model to the Cost and CPI time series. Set the ‘type’ and ‘season’ arguments to 'both' and 12, respectively.
+```{r}
+var.fit.7 = VAR(cbind(log(Cost),log(motel[,3])), p = 7, type = "both",season = 12) 
+#summary(var.fit.7)
+serial.test(var.fit.7,lags.pt = 10 , type = "PT.asymptotic")
+```
+
+* Portmanteau test p value are very small, so we have to reject the null hypothesis of no serial correlation in the residuals.
+* Alternative is to try VAR(10)， but the p-value is even smaller
+```{r}
+var.fit.10 = VAR(cbind(log(Cost),log(motel[,3])), p = 10, type = "both",season = 12) 
+serial.test(var.fit.10,lags.pt = 10 , type = "PT.asymptotic")
+```
+
+
+**b) Forecast and plot**
+Forecast and plot the average price per room (i.e., Cost) and CPI for the next 18 months using your fitted model.
+```{r}
+forcast.var = forecast(var.fit.7,h =18)
+plot(forcast.var)
+```
+
+```{r}
+forecast.cost.var = exp(forcast.var$forecast$log.Cost.$mean)
+# = exp(forecast(var.fit.7, h = 18)[,1])
+
+plot(forecast.cost.var,ylim = c(85,100))
+
+both.forcast = cbind.data.frame(var.forcast.cost = forecast.cost.var, forecast.arimaerror.cost = forecast.cost$mean)
+plot(both.forcast[,1],ylim = c(85,100))
+lines(both.forcast[,2],col = 'blue')
+#points(rownames(forecast.cost$mean),forecast.cost$mean,)
+legend(x='topleft',legend = c('var.forecasted','reg with arima error.forecasted'), lty = c(1,1), col = c('black','blue'))
+```
+
+```{r}
+forecast.CPI.var = exp(forcast.var$forecast$log.motel...3..$mean)
+plot(forecast.CPI.var)
+```
+
+
+**c) Plot the acf of residuals**
+```{r}
+var.residuals = cbind.data.frame(var.cost.residuals = Cost- exp(var.fit.7[["y"]][,1]) ,var.CPI.residuals = motel[,3] - exp(var.fit.7[["y"]][,2]))
+```
+
+```{r}
+par(mar = c(2,2,4,2))
+acf(var.residuals)
+```
+
+* Overall, var(p) models still have correlation in residuals as shown in  Portmanteau Test (asymptotic)
+* The cost prediction is quite close to the one generated by regression with Arima error model, but it's better in that the CPI is increasing instead of level.
+* The acf plots along the diagonal are the individual ACFs for each model’s residuals.The cost residuals are resonably resembling white noise, but CPI residuals has some AR feastures. 
+* The cross-correlation plots of each set of residuals resemble white noise.
+
+
+
+

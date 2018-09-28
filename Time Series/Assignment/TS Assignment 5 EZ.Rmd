@@ -1,0 +1,187 @@
+---
+title: "TS Assignment 5 EZ"
+author: "Elyse Zhang"
+date: "7/21/2018"
+output:
+  word_document: default
+  html_document: default
+---
+
+**Question 1: Load the condmilk.rda dataset and split it into a training dataset (1971/1 – 1979/12) and a test dataset (1980/1 – 1980/12)**
+
+```{r}
+library(fpp)
+data(condmilk)
+
+plot(condmilk)
+```
+
+```{r}
+condmilk.train = window(condmilk, c(1971,1), c(1979,12))
+condmilk.test = window(condmilk, c(1980,1), c(1980,12))
+```
+
+
+**Question 2: Plot the training dataset. Is Box-Cox transformation necessary for this data?**
+
+```{r}
+plot(condmilk.train)
+```
+
+* There seems to be decreasing trend of variation, so we could use Boxcox transformation
+
+```{r}
+BoxCox.lambda(condmilk.train)
+condmilk.train.bc= BoxCox(x= condmilk.train,lambda = BoxCox.lambda(condmilk.train))
+plot(condmilk.train.bc)
+```
+
+* Box-cox transformed train dataset has less variation change over time.
+
+
+**Question 3: Is the training dataset stationary? If not, find an appropriate differencing which yields stationary data. Plot the ACF and PACF to determine the appropriate seasonal differencing which yields stationary data.**
+
+```{r}
+kpss.test(condmilk.train.bc)
+adf.test(condmilk.train.bc)
+```
+
+* After box.cox transformation: The process is stationary, proven by both kpss and adf tests, non-seasonal differencing is not necessary. 
+* For kpss test, p value = 0.1, we can **accept** null hypothesis that the process is stationary. 
+* For Augmented Dickey-Fuller Test, p-value = 0.01, we **reject** the null hypothesis that the process is not stationary. 
+
+```{r}
+acf(condmilk.train.bc, lag.max=36)
+pacf(condmilk.train.bc,lag.max=36)
+```
+
+* Based on the ACF and PACF, seasonal difference with lag = 1 is necessary.
+
+```{r}
+season.diff1 = diff(condmilk.train.bc,lag = 12, difference = 1)
+plot(season.diff1)
+acf(season.diff1,lag.max = 36)
+pacf(season.diff1,lag.max = 36)
+```
+
+```{r}
+kpss.test(season.diff1)
+adf.test(season.diff1)
+```
+
+* One level of Seasonal-differencing renders the process less stationary (ACF is too slow to diminish ), but it helped with lag = 12 seasonality
+* For kpss test, p value = 0.1, we can **accept** null hypothesis that the process is stationary. 
+* But for Augmented Dickey-Fuller Test, p-value = 0.433, we have to **accept** the null hypothesis that the process is not stationary. 
+* Because ACF show very significant exponential decay in the seasonal lags, and PACF show a single peak at begining as well as the first seasonal lag. The model could be something like an ARIMA(1,0,0)(1,1,0)12
+
+
+```{r}
+season.diff2 = diff(condmilk.train.bc,lag = 12, differences=2)
+plot(season.diff2)
+acf(season.diff2,lag.max = 36)
+pacf(season.diff2,lag.max = 36)
+```
+
+```{r}
+kpss.test(season.diff2)
+adf.test(season.diff2)
+```
+
+* Additional seasonal differencing does not help with stationality. Augmented Dickey-Fuller Test p value for D = 2 is very similar to the D = 1
+* Seasonal differencing D = 1 should be enough. If needed we can start with an ARIMA(1,0,0)(1,1,0)12
+
+
+**Question 4:**
+Build two 𝐴𝑅𝐼𝑀𝐴(𝑝,𝑑,𝑞)(𝑃,𝑄,𝐷)𝑠 models using the training dataset and auto.arima() function.
+* Model 1: Let the auto.arima() function determine the best Order of seasonal-differencing 𝐷 value
+* Model 2: Set the order of seasonal-differencing 𝑑 to 1 and 𝐷 to 1.
+
+Report the resulting 𝑝,𝑑,𝑞,𝑃,𝐷,𝑄,𝑠 and the coefficients values for all cases and compare their AICc and BIC values.
+
+```{r}
+(auto.fit = auto.arima(condmilk.train.bc, ic = 'aicc', seasonal = TRUE))
+```
+
+
+```{r}
+(manual.fit = auto.arima(condmilk.train.bc,  d= 1, D = 1, ic = 'aicc', seasonal = TRUE))
+```
+
+* The Model 1 uses auto.arima() function to determine the seasoanl difference D to be 1, the model is ARIMA(1,0,0)(2,1,0)[12], Model 2 is ARIMA(1,0,0)(2,2,0)[12]. 
+* Model 1's log likelihood is 209.4, AICc=-410.37 and BIC=-400.55, the 
+* Model 2's log likelihood is 205.13, AICc=-399.58, BIC=-387.48
+* Model 1 seems to have slightly better performance.
+
+
+**Question 5:Plot the residuals ACF of both models from part 4 and use the Ljung-Box Test with lag 12 to verify your conclusion.**
+
+```{r}
+checkresiduals(auto.fit)
+checkresiduals(manual.fit)
+```
+
+* Residual ACF for Model 1 look slightly better than Model 2. 
+* Ljung-Box test of Model 1's residual resulted in p = 0.07792, meaning we don't reject the null hypothesis that the residuals are random, but it's somewhat on the edge; For Model 2 p = 0.04432, meaning the residuals are not as random as we hoped. 
+
+
+**Question 6:Use both models from part 4 and the h-period argument in the forecast() function to forecast each month of 1980. Plot the test dataset and forecasted values.**
+
+```{r}
+forecast.auto = InvBoxCox(forecast(auto.fit,h=12)$mean,lambda = BoxCox.lambda(condmilk.train))
+
+forecast.manual = InvBoxCox(forecast(manual.fit,h=12)$mean,lambda = BoxCox.lambda(condmilk.train))
+
+plot(forecast.auto, col = 'orange',lwd = 3)
+lines(forecast.manual,col = 'green')
+lines(condmilk.test, col = 'blue')
+
+legend(x='topleft',legend = c('observed','auto.forecasted','manual.forecasted'), lty = c(1,1), col = c('blue','orange','green'))
+```
+
+
+**Question 7: Compare the forecast with the actual test data by calculating the Mean Absolute Percentage Error (MAPE) and Mean Squared Error (MSE). Which models better to forecast the Manufacturer's Stocks for each month of 1980 (Jan, Feb, …, Dec)?**
+
+* Mean Absolute Percentage Error
+```{r}
+(MAPE.auto = sum(abs(forecast.auto - condmilk.test)/condmilk.test)/length(condmilk.test))
+
+(MAPE.manual = sum(abs(forecast.manual - condmilk.test)/condmilk.test)/length(condmilk.test))
+```
+
+MAPE for model 1 is 18.475%, for model 2 is 18.511%. Very close, because the scale of the difference is small compared to the observed value. But Model 1 is slightly better.
+
+* MSE
+```{r}
+(MSE.auto = sum((forecast.auto - condmilk.test)^2)/length(condmilk.test))
+
+(MSE.manual = sum((forecast.manual - condmilk.test)^2)/length(condmilk.test))
+```
+
+MSE for model 1 is 303.4648, for model 2 is 303.4596. Model 2 (manual) is slightly better.
+
+```{r}
+cbind(observed = condmilk.test, absolute.diff.auto = abs(forecast.auto - condmilk.test), absolute.diff.manual = abs(forecast.manual - condmilk.test))
+```
+
+We can see that Model 1 (auto) performs better for Jan-June and Dec 1980 total 6 month, whereas Model 2 (manual) performs better in July- Nov total 6 month. But they are very close overall speaking.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

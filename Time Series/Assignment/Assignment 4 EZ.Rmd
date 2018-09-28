@@ -1,0 +1,168 @@
+---
+title: "Assignment 4"
+author: "Elyse Zhang"
+date: "7/13/2018"
+output:
+  word_document: default
+  html_document: default
+---
+**Question 1 Combine the data from the 16 files into a single dataset and plot it.**
+* Manually combined the data in separate excel file with the assumption that the recorded 00:00 time in each sheet are in fact the 00:00 time of the next day.
+
+```{r}
+library(readr)
+combined_traffic = read_csv("~/Documents/UChicago/Courses/Summer 2018/Time Series/Assignment/Assignment 4/Traffic Flow Data/combined_traffic.csv")
+
+```
+
+```{r}
+str(combined_traffic)
+```
+
+It's not a time-series dataset, we can converted to time-series.
+
+```{r}
+ts.traffic = combined_traffic[order(combined_traffic$date_i80),]
+ts.traffic = ts(combined_traffic$Count,frequency=24)
+
+```
+
+```{r}
+plot(ts.traffic)
+```
+
+
+**Question 2: Split the dataset into a training dataset which includes 6/13/2013 - 6/20/2013 and Test dataset which includes 7/1/2013**
+```{r}
+training.traffic = window(ts.traffic, c(1,1), c(15,24))
+testing.traffic = window(ts.traffic, c(16,1), c(16, 24))
+
+plot(training.traffic)
+acf(training.traffic)
+pacf(training.traffic)
+```
+
+* ACF and PACF also show very strong seasonality in dataset
+
+**Question 3:Build an 𝐴𝑅𝐼𝑀𝐴(𝑝,𝑑,𝑞) model using the training dataset and R auto.arima() function. Change the values of 𝑝 and 𝑞 and determine the best model using AICc and BIC values. Do AICc and BIC select the same model as the best model? For each derived model, review the residual plots for the ACF of residuals and residual normality.?**
+
+```{r}
+library(fpp)
+(auto.fit.aicc = auto.arima(training.traffic, ic = 'aicc', seasonal = FALSE))
+checkresiduals(auto.fit.aicc)
+```
+
+
+```{r}
+(auto.fit.bic = auto.arima(training.traffic, ic = 'bic',seasonal = FALSE))
+checkresiduals(auto.fit.bic)
+```
+
+* AICc arrived at ARIMA(2,0,3),whereas BIC arrived at ARIMA(2,0,2). 
+* Both models still have seasonality in their residual's ACF function. 
+* Both models' Ljung-Box text have a very small p-value, so we have to reject the hypothesis that the residuals are independent. 
+* Other models can be considered using eacf, if we set maximum p and q to be 3.
+
+```{r}
+library(TSA)
+eacf(training.traffic) 
+```
+
+```{r}
+(no.seasonal.200 = Arima(training.traffic,c(2,0,0),method="ML"))
+checkresiduals(no.seasonal.200)
+
+(no.seasonal.201 = Arima(training.traffic,c(2,0,1),method="ML"))
+checkresiduals(no.seasonal.201)
+
+(no.seasonal.301 = Arima(training.traffic,c(3,0,1),method="ML"))
+checkresiduals(no.seasonal.301)
+
+(no.seasonal.302 = Arima(training.traffic,c(3,0,2),method="ML"))
+checkresiduals(no.seasonal.302)
+```
+
+* They all have higher AIC, AICc and BIC than the auto.arima models, with Arima(3,0,1) and (3,0,2) quite close to the previous two models
+* All models' ACF still show seasonality and have very small p values meaning rejecting the hypothesis that the residuals are independent.
+
+**Question 4:Build a day of the week seasonal 𝐴𝑅𝐼𝑀𝐴(𝑝,𝑑,𝑞)(𝑃,𝑄,𝐷)𝑠 model using the training dataset and R auto.arima() function**
+
+```{r}
+dow.training = ts(data = training.traffic, frequency = 168)
+plot(dow.training)
+```
+
+```{r}
+(seasonal.dow.aicc = auto.arima(dow.training,seasonal = TRUE, ic = 'aicc'))
+checkresiduals(seasonal.dow.aicc)
+```
+
+* The resulted model is ARIMA(0,1,2)(0,1,0)[168]
+* The model AIC AICc BIC as well as log likelihood performed much better than the no-seasonal models
+* Ljung-Box test for residuals: p-value = 0.04, we on on the edge but we don't have to reject the null hypothesis that the residuals are white noise. 
+* Less seasonality in ACF plot.
+
+**Question 5:Use the 𝐴𝑅𝐼𝑀𝐴(𝑝,𝑑,𝑞)(𝑃,𝑄,𝐷)𝑠 model from part 4 to forecast for July 1 (which is a Monday). Plot your result.**
+```{r}
+forecast.dow = forecast(seasonal.dow.aicc,h=24)
+plot(forecast.dow$mean)
+```
+
+```{r}
+plot(testing.traffic)
+```
+
+* The shape is quite close to the testing data
+
+**Question 6: Build a hour of the day seasonal 𝐴𝑅𝐼𝑀𝐴(𝑝,𝑑,𝑞)(𝑃,𝑄,𝐷)𝑠model using the training dataset and R auto.arima() function.**
+
+```{r}
+hod.training = ts(data = training.traffic, frequency = 24)
+plot(hod.training)
+```
+
+```{r}
+(seasonal.hod.aicc = auto.arima(hod.training,seasonal = TRUE, ic = 'aicc'))
+checkresiduals(seasonal.hod.aicc)
+```
+
+* The resulted model is ARIMA(2,0,2)(2,1,0)[24]
+* The model AIC AICc BIC as well as log likelihood performed only slightly better than the no-seasonal models,but much worse than the day of week model
+* Ljung-Box test for residuals: p-value =  0.2, we don't reject the null hypothesis that the residuals are white noise. 
+* still can see some peaks in ACF.
+
+**Question 7:Use the 𝐴𝑅𝐼𝑀𝐴(𝑝,𝑑,𝑞)(𝑃,𝑄,𝐷)𝑠 model from part 8 to forecast for July 1 (which is a Monday). Plot your result.**
+```{r}
+forecast.hod = forecast(seasonal.hod.aicc,h=24)
+plot(forecast.hod$mean)
+```
+
+* The shape is not as similar to the testing data as the previous model.
+
+**Question 8: Compare the forecast of the models from part 5 and 7 for July 1 8:00, 9:00, 17:00 and 18:00, which model is better (part 4 or part 6)?**
+
+* Based on the plots, the day of week model seems to be closer. 
+* We can further investigate the peak hour errors
+```{r}
+testing.traffic
+(peak.observed = testing.traffic[c(8,9,17,18)])
+```
+
+```{r}
+peak.error.dow = peak.observed -forecast.dow$mean[c(8,9,17,18)]
+plot(peak.error.dow, type = 'b')
+(SSE.dow = sum(peak.error.dow^2))
+```
+
+```{r}
+peak.error.hod = peak.observed - forecast.hod$mean[c(8,9,17,18)]
+plot(peak.error.hod,type = 'b')
+(SSE.dow = sum(peak.error.hod^2))
+```
+
+* The hour of day (part 6) model consistently underestimated the test dataset with the SSE =265420.8 . 
+* The day of week (part 4) model has much smaller error SSE = 4604.173, thus is a better model than the hour of day despite having residual slightly lower than 0.05. 
+* The fact that hod model did not do well is probably due to the much different traffic pattern in Saturday and Sundays. If we have a model method that can consider both seasonal pattern (hour of the day as well as day of week), we can expect it to have even less error and much good residaul patterns.
+
+
+

@@ -1,0 +1,95 @@
+---
+title: "HW2"
+author: "Elyse Zhang"
+date: "6/30/2018"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+### Question 1:
+Load the visitors.rda dataset, make a time plot of your data and describe the main features of the series.
+```{r}
+load('visitors.rda')
+head(visitors)
+plot(visitors)
+```
+
+* **There is a clear upward trend.**
+* **There is quite strong seasonality.**
+* **The seasonal fluctuation seems to be increasing in magnitude over time.** 
+* **There is no obvious cyclic pattern.**
+
+### Question 2:
+What is the appropriate Holt-Winters method for this data set (multiplicative / additive)? why?
+
+**It should be multiplicative Holt-Winters method because the seasonal fluctuation seems to be increasing in magnitude over time**
+
+### Question 3
+Use the hw() function to forecast the next 15 months using Holt-Winters’ methods. Experiment with the following methods
+```{r}
+library('fpp')
+```
+
+* Linear trend with additive seasonality
+```{r}
+m_la = hw(visitors, seasonal = 'additive', h = 15)
+plot(m_la)
+```
+
+* Linear trend with multiplicative seasonality
+```{r}
+m_lm = hw(visitors, seasonal = 'multiplicative', h = 15)
+plot(m_lm)
+```
+
+* Exponential trend with multiplicative seasonality without damping
+```{r}
+m_em = hw(visitors, seasonal = 'multiplicative',  exponential = TRUE, h = 15)
+plot(m_em)
+```
+
+* Exponential trend with multiplicative seasonality and damping
+```{r}
+m_emd = hw(visitors, seasonal = 'multiplicative',  damped = TRUE, exponential = TRUE, h = 15)
+plot(m_emd)
+```
+
+* Linear trend with multiplicative seasonality and damping
+```{r}
+m_lmd = hw(visitors, seasonal = 'multiplicative', damped = TRUE, h = 15)
+plot(m_lmd)
+```
+
+### Question 4:
+Use the accuracy() function to compare the Root-Mean-Square-Error (RMSE) values of the forecasts from the various methods. Which do you prefer and why?
+
+```{r}
+cbind(m_la.RMSE = as.data.frame(accuracy(m_la))$RMSE, m_lm.RMSE = as.data.frame(accuracy(m_lm))$RMSE, m_em.RMSE = as.data.frame(accuracy(m_em))$RMSE, m_emd.RMSE = as.data.frame(accuracy(m_emd))$RMSE, m_lmd.RMSE = as.data.frame(accuracy(m_lmd))$RMSE)
+
+```
+
+**I prefer the model with linear trend with multiplicative seasonality and damping, because it has least Root-Mean-Square-Error. **
+
+### Question 5:
+a) Use the checkresiduals() function to check that the residuals from the best model look like white noise and provide a summary of the model’s smoothing parameters using the summary() function.
+
+```{r}
+checkresiduals(m_lmd)
+```
+
+* **Mean of the residuals seem to be very close to zero**
+* **Residuals are reasonably close to normal distribution**
+* **There are some occational correlations in the residuals series**
+
+```{r}
+summary(m_lmd)
+```
+
+Smoothing parameters:
+
+* **alpha = 0.6668 for level meaning that this forecasting has quick response to changes**
+* **beta  = 0.0043 for trend, meaning it has a more moderate trend**
+* **gamma = 1e-04 for seasonal component, meaning smaller seasonality component**
+* **phi   = 0.98 is the damping factor signaling that the trend line changes relatively rapidly over time.**

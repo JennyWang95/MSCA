@@ -1,0 +1,152 @@
+---
+title: "Assignment 3"
+author: "Elyse Zhang"
+date: "7/8/2018"
+output:
+  word_document: default
+  html_document: default
+---
+```{r}
+library(fpp)
+```
+
+**Q1: Load the usgdp.rda dataset and split it into a training dataset (1947Q1 - 2005Q1) and a test dataset (2005Q2 - 2006Q1)**
+```{r}
+load('usgdp.rda')
+# usgdp
+str(usgdp)
+usgdp.train = window(usgdp, c(1947,1), c(2005, 1))
+usgdp.test = window(usgdp, c(2005,2), c(2006, 1))
+```
+
+```{r}
+#Alternative
+#n = length(usgdp)
+#usgdp.train = ts(usgdp[1:(n-4)], start=c(1947, 1), frequency=4)
+#usgdp.test = ts(usgdp[(n-3):n], start=c(2005, 2), frequency=4)
+#usgdp.train
+#usgdp.test
+```
+
+**Question 2: Plot the training dataset. Is Box-Cox transformation necessary for this data?**
+```{r}
+plot(usgdp.train)
+```
+
+* Box-cox tranformation stablize variation. The level of usgdp.train data does change somewhat exponentially, exhibit an upward bending line, so the transformation is necessary.
+
+* We can use BoxCox.Lambda to get the coefficient for transformation.
+
+```{r}
+usgdp.train.bc= BoxCox(x= usgdp.train,lambda = BoxCox.lambda(usgdp.train))
+plot(usgdp.train.bc)
+```
+
+**Question 3: Plot the 1st and 2nd order difference of the data. Apply KPSS Test for Stationarity to determine which difference order results in a stationary dataset.**
+
+```{r}
+diff1 = diff(usgdp.train.bc, differences=1)
+plot(diff1)
+```
+
+```{r}
+diff2 <- diff(usgdp.train.bc, differences=2)
+plot(diff2)
+```
+
+```{r}
+kpss.test(diff1)
+kpss.test(diff2)
+```
+
+* p-values for kpss tests of diff1 and diff2 are both above 0.05, meaning we cannot reject the null hypotheses that diff 1 is stationary, or diff 2 is stationary.
+
+* Both the 1st and 2nd order difference of the data are stationary, the mean of diff1 is 0.17936, while the mean of diff2 is 0.0095614.
+
+** Question 4:Fit a suitable ARIMA model to the transformed data using the auto.arima() function. Report the resulting 𝑝,𝑑,𝑞 and the coefficients vaslue**
+
+```{r}
+(auto.fit = auto.arima(usgdp.train.bc))
+```
+
+* p = 2, d = 1, q = 0, meaning it's an AR(2), order 1 difference ARIMA model. The AICc of this model is -101.01
+
+* ar1 = 0.2829, ar2 = 0.1163, and drift = 0.1851. The ar1 and ar2 coefficients are autoregressive coefficients of orders 1 and 2, drift means the data is nonstationary. So the time series can be written as $(1-0.2829B - 0.1163B^{2}) * (1-B) * Y_{t} = 0.1851 + e_{t}$
+
+
+**Question 5: Compute the sample Extended ACF (EACF) and use the Arima() function to try some other plausible models by experimenting with the orders chosen.**
+```{r}
+library(TSA)
+```
+
+```{r}
+eacf(usgdp.train.bc) # d=0
+eacf(diff1) # d = 1
+eacf(diff2) # d =2
+```
+
+* Based on the Extended ACF,some good choices are ARIMA(2,0,1), ARIMA(1,0,2), ARIMA(2,0,2), ARIMA(0,1,2), ARIMA(1,1,2), ARIMA(2,1,2), ARIMA(0,2,1), ARIMA(0,2,2) and ARIMA(1,2,2). Suprisingly, none of them are the same as the results from auto.arima
+
+* Three models with d = 0 as shown below are not as good as the ARIMA(2,1,0) based on AICc values.
+
+```{r}
+Arima(usgdp.train.bc,c(2,0,1),method="ML", include.drift = TRUE)
+Arima(usgdp.train.bc,c(1,0,2), method="ML", include.drift = TRUE)
+Arima(usgdp.train.bc,c(2,0,2), method="ML", include.drift = TRUE)
+```
+
+
+* Three models with d = 1 as shown below. In fact the model ARIMA(0,1,2) has a better AICc value than the auto.arima model ARIMA(2,1,0)
+```{r}
+Arima(usgdp.train.bc,c(0,1,2), method="ML",include.drift = TRUE)
+Arima(usgdp.train.bc,c(1,1,2), method="ML",include.drift = TRUE)
+Arima(usgdp.train.bc,c(2,1,2), method="ML",include.drift = TRUE)
+#Arima(diff1,c(2,0,2)) is the same as the above one
+```
+
+* with d =2, the models are not as good as d = 1 or the auto.arima results
+
+```{r}
+Arima(usgdp.train.bc,c(0,2,1),method="ML",include.drift = TRUE)
+Arima(usgdp.train.bc,c(0,2,2), method="ML",include.drift = TRUE)
+Arima(usgdp.train.bc,c(1,2,2), method="ML",include.drift = TRUE)
+```
+
+The model ARIMA(0,1,2) has a slightly better AICc value than the auto.arima model ARIMA(2,1,0) from Question 4.
+
+**Question 6: Use the model chosen in Question 4 to forecast the GDP for 2005Q2 - 2006Q1 (Test Period).**
+
+```{r}
+(forecast = InvBoxCox(forecast(auto.fit,h=4)$mean,lambda = BoxCox.lambda(usgdp.train)))
+```
+
+**Question 7:Compare your forecasts with the actual values using error = actual - estimate and plot the errors.**
+```{r}
+(error = usgdp.test - forecast)
+
+plot(error)
+```
+
+**Question 8: Calculate the sum of squared error**
+```{r}
+(SSE = sum(error^2))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

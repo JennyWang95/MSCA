@@ -1,0 +1,219 @@
+---
+title: "TS Assignment 6"
+author: "Elyse Zhang"
+date: "7/29/2018"
+output:
+  word_document: default
+  html_document: default
+---
+
+**Question 1. Load and plot the visitors dataset**
+```{r}
+load('visitors.rda')
+plot(visitors)
+```
+
+**main dataset characteristics**
+* There is a clear increasing trend, we might need differencing to make the data stationary or set the drift = True in Arima models
+* There is clearly seasonal patterns and s should be 12 month.
+* The variance of seasonality seems to be increasing with time. Meaning the seasonality could be multiplicative. We may use box-cox transformation for the data, or use multiplicative HW model.
+
+```{r}
+library(fpp)
+```
+
+```{r}
+BoxCox.lambda(visitors)
+visitors.bc= BoxCox(x= visitors,lambda = BoxCox.lambda(visitors))
+plot(visitors.bc)
+```
+
+
+**Question 2. Time-series cross validation method**
+```{r}
+k <- 160 # minimum data length for fitting a model
+n <- length(visitors) # Number of data points
+
+p <- 12 ### Period
+h <- 12 # 12 months
+
+# Use a single observation incrementation in each iteration (i.e., shift the training set forward by 1 observations.) Note: You are expected to have 80 iterations of cross validation
+
+st <- tsp(visitors)[1]+(k-2)/p #  gives the start time in time units,
+
+err.arima.expand <- matrix(NA,n-k,h)
+err.arima.slide <- matrix(NA,n-k,h)
+err.ets.expand <- matrix(NA,n-k,h)
+err.ets.slide <- matrix(NA,n-k,h)
+
+AICc.arima.expand = vector(mode="numeric", length = n-k)
+AICc.arima.slide = vector(mode="numeric", length = n-k)
+AICc.ets.expand = vector(mode="numeric", length = n-k)
+AICc.ets.slide = vector(mode="numeric", length = n-k)
+
+arima.slide.coefficients = matrix(NA,n-k,5)
+```
+
+
+```{r}
+#n-k of possible model
+for(i in 1:(n-k))
+{
+  ### One Month rolling forecasting
+  # Expanding Window 
+  train.expand <- window(visitors, end=st + i/p)  ## Window Length: k+i
+  
+  # Sliding Window - keep the training window of fixed length. 
+  # The training set always consists of k observations.
+  train.slide <- window(visitors, start=st+(i-k+1)/p, end=st+i/p) ## Window Length: k
+  
+  test <- window(visitors, start=st + (i+1)/p, end=st + (i+h)/p) ## Window Length: h
+
+  # cat(c("*** CV", i,":","len(Expanding Window):",length(train.expand), "len(Sliding Window):",length(train.slide), "len(Test):",length(test),'\n'  ))
+  # cat(c("*** TRAIN -  Expanding WIndow:",tsp(train.expand)[1],'-',tsp(train.expand)[2],'\n'))
+  # cat(c("*** TRAIN - Sliding WIndow:",tsp(train.slide)[1],'-',tsp(train.slide)[2],'\n'))
+  # cat(c("*** TEST:",tsp(test)[1],'-',tsp(test)[2],'\n'))
+  # cat("*************************** \n \n")
+
+# sARIMA([1,0,1][0,1,2]12 with drift of expanding window
+  fit.arima.expand = Arima(train.expand, order=c(1,0,1), seasonal=list(order=c(0,1,2), period=p),
+                include.drift = TRUE, lambda = BoxCox.lambda(visitors), method="ML") #lambda = boxcox lambda
+  fcast.arima.expand = forecast(fit.arima.expand, h=h)
+
+# Exponential Smoothing MAM of expanding window  
+  fit.ets.expand = ets(train.expand, model = "MAM",ic = 'aicc') # Multiplicative Error, Additive trend, Multiplicative Season (MAM), multiplicative model can't have boxcox lambda
+  fcast.ets.expand = forecast(fit.ets.expand, h=h)
+
+# sARIMA([1,0,1][0,1,2]12 with drift of sliding window
+  fit.arima.slide = Arima(train.slide, order=c(1,0,1), seasonal=list(order=c(0,1,2), period=p),
+                include.drift = TRUE, lambda = BoxCox.lambda(visitors), method="ML")
+  fcast.arima.slide = forecast(fit.arima.slide, h=h)
+  
+# Exponential Smoothing MAM of sliding window  
+  fit.ets.slide = ets(train.slide, model = "MAM",ic = 'aicc') # Multiplicative Error, Additive trend, Multiplicative Season (MAM)  
+  fcast.ets.slide = forecast(fit.ets.slide, h=h)
+
+  err.arima.expand[i,1:length(test)] = abs(fcast.arima.expand[['mean']]-test)
+  err.ets.expand[i,1:length(test)] = abs(fcast.ets.expand[['mean']]-test)
+  err.arima.slide[i,1:length(test)] = abs(fcast.arima.slide[['mean']]-test)
+  err.ets.slide[i,1:length(test)] = abs(fcast.ets.slide[['mean']]-test)
+  
+  AICc.arima.expand[i] = fit.arima.expand$aicc
+  AICc.ets.expand[i] = fit.ets.expand$aicc
+  AICc.arima.slide[i] = fit.arima.slide$aicc
+  AICc.ets.slide[i] = fit.ets.slide$aicc
+  
+  arima.slide.coefficients[i,1] = fit.arima.slide$coef[1] #ar1
+  arima.slide.coefficients[i,2] = fit.arima.slide$coef[2] #ma1
+  arima.slide.coefficients[i,3] = fit.arima.slide$coef[3] #sma1
+  arima.slide.coefficients[i,4] = fit.arima.slide$coef[4] #sma2
+  arima.slide.coefficients[i,5] = fit.arima.slide$coef[5] #drift
+}
+
+cat("*************************** \n")
+```
+
+**MAE plot vs. forecast horizon**
+```{r}
+plot(1:h, colMeans(err.arima.expand,na.rm=TRUE), type="l",col=1,xlab="horizon", ylab="MAE",ylim = c(15,40))
+lines(1:h, colMeans(err.ets.expand,na.rm=TRUE), type="l",col=2)
+lines(1:h, colMeans(err.arima.slide,na.rm=TRUE), type="l",col=3)
+lines(1:h, colMeans(err.ets.slide,na.rm=TRUE), type="l",col=4)
+
+legend("topleft",legend=c("ARIMA - Expanding Window","etsMAM - Expanding Window", 'ARIMA - Sliding window ','etsMAM - Sliding Window'),col=1:4,lty=1)
+
+cbind( MAE.arima.expand= mean(colMeans(err.arima.expand, na.rm=TRUE)), MAE.ets.expand = mean(colMeans(err.ets.expand, na.rm=TRUE)), MAE.arima.slide = mean(colMeans(err.arima.slide, na.rm=TRUE)), MAE.ets.slide = mean(colMeans(err.ets.slide, na.rm=TRUE))  )
+
+```
+
+* MAE increases with prediction horizon, meaning the predictions are less accurate when we are predicting later events. 
+* The sArima model with sliding window (greenline) has the lowest Mean Asbolute Deviation/Error MAE. 
+
+
+**RMSE vs. forecast horizon**
+```{r}
+plot(1:h, sqrt(colMeans(err.arima.expand^2,na.rm=TRUE)), type="l",col=1,xlab="horizon", ylab="RMSE",ylim = c(20,50))
+lines(1:h, sqrt(colMeans(err.ets.expand^2,na.rm=TRUE)), type="l",col=2)
+lines(1:h, sqrt(colMeans(err.arima.slide^2,na.rm=TRUE)), type="l",col=3)
+lines(1:h, sqrt(colMeans(err.ets.slide^2,na.rm=TRUE)), type="l",col=4)
+
+legend("topleft",legend=c("ARIMA - Expanding Window","etsMAM - Expanding Window", 'ARIMA - Sliding window ','etsMAM - Sliding Window'),col=1:4,lty=1)
+
+cbind(RMSE.arima.expand= sqrt(mean(colMeans(err.arima.expand^2,na.rm=TRUE))), RMSE.ets.expand = sqrt(mean(colMeans(err.ets.expand^2,na.rm=TRUE))), RMSE.arima.slide = sqrt(mean(colMeans(err.arima.slide^2,na.rm=TRUE))), RMSE.ets.slide = sqrt(mean(colMeans(err.ets.slide^2,na.rm=TRUE))))
+```
+
+* RMSE increases with prediction horizon, it's similar to MAE, also meaning that the predictions are less accurate when we are predicting later events. 
+* The sArima model with sliding window (greenline) has the lowest Root Mean Square Error RMSE. 
+
+
+**AICc vs. iteration number**
+```{r}
+plot(1:80, AICc.arima.expand, type="l",col=1,xlab="iteration", ylab='AICc', ylim = c(-10,50))
+lines(1:80, AICc.arima.slide, type="l",col=3)
+legend("topleft",legend=c("ARIMA - Expanding Window",'ARIMA - Sliding window'),col=c(1,3),lty=1)
+
+plot(1:80, AICc.ets.expand, type="l",col=2, xlab="iteration", ylab='AICc', ylim = c(1500,3000))
+lines(1:80, AICc.ets.slide, type="l",col=4)
+legend("topleft",legend=c("etsMAM - Expanding Window", 'etsMAM - Sliding Window'),col=c(2,4),lty=1)
+
+cbind(min.aicc.arima.expand = min(AICc.arima.expand), min.aicc.ets.expand =min(AICc.ets.expand), min.aicc.arima.slide = min(AICc.arima.slide), min.aicc.ets.slide = min(AICc.ets.slide))
+
+which.min(AICc.arima.slide)
+```
+
+* Surprisingly, The AICc for ETS models and Arima models are completely different in scale. So they are plotted in two separate plots. 
+* For sARIMA[1,0,1][0,1,2]12 models, The AICc decreased slightly and then increased with increase of iteration for both expanding and sliding windows. The minimum AICs is around -9 and the best sARIMA[1,0,1][0,1,2]12 model coefficients based on AIC seems to be the sliding window one in iteration #20. That could mean that in later iterations, fitting coefficient but restricting model parameter p,d,q and PDQ does not help increase likelihood. 
+* For ets MAM models, the sliding window AICc increases slightly (with the minmum of 1612.07) whereas the expanding window methods AICc increased linearly with iteration. It's very likely that the increasing number of predictors are not improving the model likelihood at all. 
+* We can take a look at the best sARIMA[1,0,1][0,1,2]12 model coefficient at iteration 20 as well as the prediction
+
+```{r}
+j = 20
+
+train.slide.20 = window(visitors, start=st+(j-k+1)/p, end=st+j/p)
+  
+test.20 = window(visitors, start=st + (j+1)/p, end=st + (j+h)/p) 
+
+fit.arima.slide.20 = Arima(train.slide.20, order=c(1,0,1), seasonal=list(order=c(0,1,2), period=p),
+                include.drift = TRUE, lambda = BoxCox.lambda(visitors), method="ML")
+
+summary(fit.arima.slide.20)
+
+plot(forecast(fit.arima.slide.20, h=h))
+lines(visitors,col = 'black')
+
+
+```
+
+* The RMSE and MAE of the 20th iteration are 8.8 and 12.5 are better than the mean of these error terms averaged over iterations 23.6 and 32.0
+
+**Question 3**
+What are the disadvantages of the above methods. What would be a better approach to estimate the models? Hint: How were the sArima and exponential time series models determined in question 2?
+
+**Disadvantages**
+* For both expanding and slideing windows, the model is fixed as either sARIMA[1,0,1][0,1,2]12 or ets MAM. The only things we can change are the coefficients.  But these models might not stay true since new data could lead to parameter changes and in fact we did see that in all the AICc increases.
+
+* Plotting the coefficient estimates of sARIMA[1,0,1][0,1,2]12 with sliding window, we can see that the moving average coefficient changed throughout the iteration, that means the model stability is to some degree an issue.
+
+```{r}
+par(mar=c(5.1, 4.1, 4.1, 12.1), xpd=TRUE)
+plot(1:80, arima.slide.coefficients[,1], type="l",col=5 ,xlab="iteration", ylab='coefficients estimates', ylim = c(-1,1))
+lines(1:80, arima.slide.coefficients[,2], type="l",col=6)
+lines(1:80, arima.slide.coefficients[,3], type="l",col=7)
+lines(1:80, arima.slide.coefficients[,4], type="l",col=8)
+lines(1:80, arima.slide.coefficients[,5], type="l",col=9)
+
+legend("topright",inset=c(-0.6,0),legend=c('arima.slide ar1 estimates', 'arima.slide ma1 estimates', 'arima.slide sma1 estimates','arima.slide sma2 estimates','arima.slide drift estimates'),col=c(5:9),lty=1)
+```
+
+* Otherwise computationally expensive if we want to try different sARIMA and ets.
+
+**Better ways**
+* Despite heavy computation, we can try use different sARIMA and ets models
+* We could give average predictions. 
+* Other validation methods such as bootstrapping.
+
+
+
+
+
+
