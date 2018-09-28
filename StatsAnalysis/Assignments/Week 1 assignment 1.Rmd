@@ -1,0 +1,23 @@
+---
+title: "lecture 1 assignment 1"
+output: html_document
+---
+
+```{r}
+
+dataPath<-"~/Documents/UChicago/Courses/Statistical Analysis/Assignments/"
+dat <- read.table(paste0(dataPath, 'Week1_Test_Sample.csv'), header=TRUE)
+```
+
+```{r}
+sdX <- sd(dat$x) # standard deviation of x
+sdY <- sd(dat$y) # standard deviation of y
+cXY <- cor(dat$x, dat$y) #correlation
+a   <- cXY * sdY / sdX # calculate a
+result <- data.frame(sdX=sdX, sdY=sdY, cXY=cXY, a=a)  # colnames make sense!
+```
+
+```{r}
+write.table(result, file = paste(dataPath,'result.csv',sep = '/'), row.names = F) #Write result to a file
+```
+

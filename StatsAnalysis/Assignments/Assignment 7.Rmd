@@ -1,0 +1,200 @@
+---
+title: "HW 7"
+author: "Elyse Zhang"
+date: "5/9/2018"
+output: html_document
+---
+## 1 Fitting linear models
+### 1.1 Read the data
+```{r}
+datapath <- "~/Documents/UChicago/Courses/Statistical Analysis/Assignments/Week 7/"
+Regression.ANOVA.Data<-as.matrix(read.csv(file=paste(datapath,"DataForRegressionANOVA.csv",sep="/"),header=TRUE,sep=","))
+Regression.ANOVA.Data<-read.csv(file=paste(datapath,"DataForRegressionANOVA.csv",sep="/"),header=TRUE,sep=",")
+head(Regression.ANOVA.Data)
+```
+
+### 1.2 Fit linear models using: no inputs, only Input1, only Input2, both Input1 and Input2.
+```{r}
+fit.1<-lm(Output~1,data=Regression.ANOVA.Data) # only intercept
+fit.1.2<-lm(Output~1+Input1,data=Regression.ANOVA.Data)
+fit.1.3<-lm(Output~1+Input2,data=Regression.ANOVA.Data)
+fit.1.2.3<-lm(Output~.,data=Regression.ANOVA.Data)
+```
+
+```{r}
+summary(fit.1.2)
+anova(fit.1.2)
+```
+
+Explain the following outputs and calculate them using only data and linear model fit (for example, Regression.ANOVA.Data and fit.1.2):
+
+Df
+```{r}
+anova(fit.1.2)$Df
+```
+
+```{r}
+k.1.2 =2
+total.df = length(Regression.ANOVA.Data$Output)
+(residual.df.1.2 = total.df -k)
+```
+
+Sum Sq
+```{r}
+anova(fit.1.2)$"Sum Sq"
+```
+```{r}
+(SSM.1.2 = sum((fit.1.2$fitted.values-mean(fit.1.2$fitted.values))^2))
+(SSE.1.2 = sum((Regression.ANOVA.Data$Output - fit.1.2$fitted.values)^2))
+```
+F value
+```{r}
+anova(fit.1.2)$"F value"[1]
+```
+```{r}
+(F.stats.1.2 = SSM.1.2/1/(SSE.1.2/residual.df.1.2))
+```
+
+P-value Pr(>F)
+```{r}
+anova(fit.1.2)$"Pr(>F)"[1]
+```
+```{r}
+1-pf(F.stats.1.2,1,residual.df.1.2)
+```
+**What does “<2.2e-16” mean in the output of anova()?**
+**probablity of (Fstatistics = 813.4763, giving beta 1 =0 e.g. input 1 is not useful for the model) is less than 2.2e-16**
+
+### 2.3
+**What is H0 for F value in anova(fit.1.2) and for F-ststistic in summary(fit.1.2)?**
+**beta1 = 0**
+
+Obtain R2 from anova() and calculate it manually
+```{r}
+summary(fit.1.2)$r.squared
+```
+```{r}
+(r.squared.1.2 = SSM.1.2/(SSM.1.2+SSE.1.2))
+```
+
+
+
+### 2.2 Compare summary(fit.1) and anova(fit.1)
+```{r}
+summary(fit.1)
+anova(fit.1)
+```
+
+Note that anova(fit.1)$"Sum Sq" is the same as sum(fit.1$residuals^2)
+```{r}
+c(anova(fit.1)$"Sum Sq",sum(fit.1$residuals^2)) #SSE =SST
+```
+
+and the numbers of degrees of freedom are also the same
+```{r}
+c(anova(fit.1)$Df,fit.1$df.residual,summary(fit.1)$df[2])
+```
+
+**Why anova table does not show fields F value and Pr(>F)?**
+```{r}
+#because SSE = SST, no SSM
+(SSM.1 = sum((fit.1$fitted.values-mean(fit.1$fitted.values))^2))
+(SSE.1 = sum((Regression.ANOVA.Data$Output - fit.1$fitted.values)^2))
+```
+
+**because F value should be SSM/1/(SSE/residual.df), in this case, 0 since SSM is 0, and P(>F) is 100%**
+
+2.4 Compare summary(fit.1.3) and anova(fit.1.3)
+
+```{r}
+summary(fit.1.3)
+anova(fit.1.3)
+```
+
+**What do you conclude from the anova table?**
+**Input 2 might not be that significant, as given beta2 = 0, probablity of Fstats > 1.6393 is 0.201. **
+
+**Also the SSM is very small compared to SSE**
+
+Compare F-value
+```{r}
+c(F.value=anova(fit.1.3)$"F value"[1],Df=anova(fit.1.3)$Df,P.value=anova(fit.1.3)$"Pr(>F)"[1])
+##     F.value         Df1         Df2     P.value 
+##   1.6393254   1.0000000 498.0000000   0.2010141
+summary(fit.1.3)$fstatistic
+```
+
+### 2.5 Compare summary(fit.1.2.3) and anova(fit.1.2.3)
+```{r}
+summary(fit.1.2.3)
+
+anova(fit.1.2.3)
+```
+
+## 3 Use anova() to compare nested linear models
+Function anova() can be used to compare nested linear models
+
+Compare the following 2 outputs.
+```{r}
+anova(fit.1.2,fit.1.2.3)
+summary(fit.1.2.3)
+```
+
+**Did adding Input.2 change RSS in the anova table?** 
+**adding Input.2 does not change RSS in the anova table too much, **
+
+**What do you conclude from Pr(>|t|) in summary(fit.1.2.3) and Pr(>F) in anova(fit.1.3,fit.1.2.3)? **
+**Input 1 is siginificant whereas input 2 is not.**
+
+**Why anova(fit.1.3,fit.1.2.3) returns P-value of F-statistic, but summary(fit.1.2.3) returns Pr(>|t|) of t-statisic?**
+**Anova test whether any of the betas are not zero, thus F statistics, summary of linear model test each of the betas whether they are zeros, this t statistics**
+
+Compare the following 2 outputs.
+```{r}
+anova(fit.1,fit.1.2.3)
+c(anova(fit.1,fit.1.2.3)$F[2],summary(fit.1.2.3)$fstatistic[1])
+```
+**Explain what is H0 for F-test in summary(fit.1.2.3)**
+**beta1= beta 2 = 0 **
+
+```{r}
+test_dat <- read.table(paste(datapath,'Week7_Test_Sample.csv',sep = '/'), header=TRUE)
+```
+
+```{r}
+t.fit.1<-lm(Output~1,data=test_dat) # only intercept
+t.fit.1.2<-lm(Output~1+Input1,data=test_dat)
+t.fit.1.3<-lm(Output~1+Input2,data=test_dat)
+t.fit.1.2.3<-lm(Output~.,data=test_dat)
+```
+
+```{r}
+anova(t.fit.1.2)
+```
+
+```{r}
+anova(t.fit.1.3)
+```
+
+```{r}
+anova(t.fit.1,t.fit.1.2.3)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

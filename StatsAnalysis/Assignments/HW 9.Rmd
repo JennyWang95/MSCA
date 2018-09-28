@@ -1,0 +1,165 @@
+---
+title: "HW9"
+author: "Elyse Zhang"
+date: "5/22/2018"
+output: html_document
+---
+
+##1 Data
+The data for the project are in the file “PCA_ExampleData.csv”.
+
+```{r}
+ Project.Data<-read.csv(file="/Users/Elyse/Documents/UChicago/Courses/Statistical Analysis/Assignments/Week 9/PCA_ExampleData.csv",header=TRUE,sep=",")
+ Project.Data[1:10,]
+```
+
+The first row of Project.Data contains the levels at which the variables are measured.
+Separate them from the Outputs for further analysis
+```{r}
+Data.Levels<-as.numeric(Project.Data[1,])
+Project.Data<-Project.Data[-1,]
+head(Project.Data)
+
+```
+
+```{r}
+matplot(Project.Data,type="l")
+
+```
+
+## 2 PCA
+Apply princomp() to Project.Data, identify and interpret factor loadings. Check importance of factors and decide how many factors you would leave in the model.
+
+```{r}
+Project.Data.PCA = princomp(Project.Data)
+```
+
+Check the elements of the princomp() object.
+
+```{r}
+names(Project.Data.PCA)
+## [1] "sdev"     "loadings" "center"   "scale"    "n.obs"    "scores"  
+## [7] "call"
+```
+
+Plot factor loadings
+```{r}
+(Loadings<-Project.Data.PCA$loadings)
+
+matplot(1:11,Project.Data.PCA$loadings[,1:3],type="l",lty=1:3,lwd=1,xaxt="n",xlab="Data.Levels",ylab="Loadings",ylim=c(-0.6,0.5),col=c("black","red","green"))
+
+axis(1, 1:11, labels=colnames(Project.Data)) # what does -10 to 10 mean
+legend("topright",legend=c("L1","L2","L3"),lty=3,lwd=1,cex=.7,col=c("black","red","green")) # green like is not the same as assignment why? 
+
+```
+
+plot factors.
+
+```{r}
+plot(Project.Data.PCA)
+
+matplot(Project.Data.PCA$scores[,1:3],type="l",lty=1:3,lwd=1,ylim=c(-1000,+1000),col=c("black","red","green"))
+legend("topright",legend=c("F1","F2","F3"),lty=3,lwd=1,col=c("black","red","green"))
+
+```
+
+Analyze importance of the factors and select the number of factors that satisfies you.
+```{r}
+Project.Data.PCA$sdev^2
+Project.Data.PCA$sdev^2/sum(Project.Data.PCA$sdev^2)
+```
+
+Estimate PCA using manual calculation with eigen(). For this recall the steps on slide 16 of the lecture notes.
+Calculate 3 factor loadings using PCA and using manual method based on eigen-decomposition. Combine them in one matrix Project.Data.PCA.by.eigen.Loadings and compare
+```{r}
+# mean(Project.Data[,1])
+# Project.Data[,1]-mean(Project.Data[,1])
+Y0=sapply(1:11,function(z) Project.Data[,z]-mean(Project.Data[,z]))
+```
+
+```{r}
+cov.Y0=cov(Y0)
+Loadings.matrix=eigen(cov.Y0)$vectors
+Factors.matrix =Y0 %*% L
+```
+
+```{r}
+(Project.Data.PCA.by.eigen.Loadings=cbind(Loadings.matrix[,1:3],Project.Data.PCA$loadings[,1:3]))
+```
+
+## 3 Test
+```{r}
+dataPath <- "/Users/Elyse/Documents/UChicago/Courses/Spring 2018/Statistical Analysis/Assignments/Week 9/"
+test_dat <- read.table(paste(dataPath,'Week9_Test_Sample.csv',sep = '/'), header=TRUE)
+```
+
+```{r}
+lm.full = lm(Resp ~.,data = test_dat)
+summary(lm.full)
+```
+
+
+```{r}
+test_dat.PCA = princomp(test_dat[2:11])
+test_dat.PCA$sdev^2
+cumsum(test_dat.PCA$sdev^2/sum(test_dat.PCA$sdev^2)) # this is explaining variances among predictors. comp 1 to comp 4 is able to explain 96% of the variance, it will do as bad or good predicting any Y as if we put all ten comps.
+```
+
+```{r}
+test_dat.PCAFactors<-test_dat.PCA$scores
+test_dat.Rotated<-as.data.frame(cbind(Resp=test_dat$Resp,test_dat.PCAFactors))
+```
+
+
+
+
+```{r}
+linModPCA<-lm(Resp ~., data = test_dat.Rotated)
+summary(linModPCA)
+```
+
+
+
+```{r}
+suppressMessages(library(relaimpo))
+metrics.test_dat.pca <- calc.relimp(linModPCA, type = c("lmg", "first", "last","betasq", "pratt"))
+metrics.test_dat.pca
+metrics.test_dat.pca@lmg.rank
+```
+
+
+```{r}
+lm.pca.small = lm(Resp ~ Comp.2 + Comp.5, data = test_dat.Rotated)
+summary(lm.pca.small)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

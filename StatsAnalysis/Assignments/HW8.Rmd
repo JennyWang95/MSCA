@@ -1,0 +1,205 @@
+---
+title: "HW 8"
+author: "Elyse Zhang"
+date: "5/15/2018"
+output: html_document
+---
+## 1 Coagulation data (Examples 7.3.1 - 7.3.4)
+The data are in the package faraway and in the file coagulationdata.csv.
+In this experiment four different diets were tried on animals. Then researchers measured their effects on blood coagulation time.
+```{r}
+suppressWarnings(library(faraway))
+```
+
+```{r}
+coagulation
+plot(coag~diet, data=coagulation, pch=19,col="black")
+```
+
+Evaluate visually mean values of each group and whether the differences between them are significant to check your intuition later.
+
+Calculate summary statistics for each group.
+Create the 2-column matrix of group means and sizes.
+```{r}
+summaryByGroup<-aggregate(coag~diet,data=coagulation,FUN=summary)
+summaryByGroup$coag #returns 6 columns, 4th one is mean
+summaryByGroup$diet
+
+Sizes=aggregate(coag~diet,data=coagulation,FUN=length)
+Sizes$diet
+Sizes$coag
+
+means<-cbind(Means=summaryByGroup$coag[,4],Sizes$coag)
+
+rownames(means)<-as.character(summaryByGroup$diet)
+means
+```
+
+You also can work with each group separately using subset().
+For example,
+```{r}
+Group1.dietA<-subset(coagulation,coagulation$diet=="A")
+Group1.dietA
+
+summary(Group1.dietA)
+
+mean(Group1.dietA[,1])
+```
+
+### 1.1 ANOVA for the data
+Fit linear model for coag~diet.
+Observe the summary, look and interpret results of fitted linear model and regression ANOVA.
+```{r}
+coag.model = lm(coagulation$coag ~ coagulation$diet)
+modelSummary = summary(lm(coagulation$coag ~ coagulation$diet))
+modelSummary$coefficients
+
+modelSummary$df
+
+c(modelSummary$sigma,modelSummary$r.squared)
+
+modelSummary$fstatistic
+
+modelANOVA = anova(lm(coagulation$coag ~ coagulation$diet))
+
+modelANOVA
+```
+
+**1. If the formula is coag~diet then why are we getting estimates of the parameters dietB, dietC, and dietD?**
+distance of their means to diet A
+
+**2. Analyze statistical significance of all parameters based on p-values and standard errors.**
+B C and intercept are significant. Not D
+
+**3. Analize the values of parameters and interpret them. For example, What does the value of coefficient for dietC tell you?**
+Difference between C and A is 7
+
+**4. Analize the goodness of fit based on the determination coefficient, F-statistic.**
+A good fit
+
+**5. Analyze the residuals.**
+SSM = 228, SSE = 112, SST = 340
+
+Create matrix with dummy variable inputs for ANOVA.
+
+**Why are we creating 3 input variables if we are given 4 groups?**
+Because there is intercept A with all the TRUEs
+```{r}
+model.matrix(lm(coagulation$coag ~ coagulation$diet))
+```
+
+
+```{r}
+coag<-coagulation
+coag$x1<-coag$diet=="B"
+coag$x2<-coag$diet=="C"
+coag$x3<-coag$diet=="D"
+coag
+```
+
+Fit full and null linear models for coag~x1+x2+x3 (all inputs) and coag~1 (intercept only).
+Compare the two models using anova.
+```{r}
+coag.model.full<-lm(coag~x1+x2+x3, data=coag) #the same as linear model coag model
+coag.model.null<-lm(coag~1,data=coag)
+summary(coag.model.null)
+summary(coag.model.full)
+anova(coag.model.null,coag.model.full)
+```
+
+Compare and explain the output of anova(coag.model.null,coag.model.full) with the outputs of summary(coag.model) and  anova(coag.model).
+
+**1. Compare degrees of freedom.**
+**2. Compare the sums of squares.**
+**3. compare the p-values.**
+
+Null is not correct, didn't explain any variation
+
+
+Calculate manually the sum of squares shown in ANOVA table.
+
+In order to do that we need grand mean and the vector of full length of group means.
+
+```{r}
+grand.mean = mean(coag$coag)
+grand.mean
+
+A.mean= summaryByGroup$coag[1,4]
+B.mean= summaryByGroup$coag[2,4]
+C.mean= summaryByGroup$coag[3,4]
+D.mean=summaryByGroup$coag[4,4]
+group.mean = c(rep(A.mean,Sizes$coag[1]),rep(B.mean,Sizes$coag[2]),rep(C.mean,Sizes$coag[3]),rep(D.mean, Sizes$coag[4]))
+
+group.mean
+
+# Calculate SST,SSE and SSM. Observe decomposition of the variance representation SST.
+SST= sum((coag$coag-grand.mean)^2)
+SSE = sum((coag$coag[coag$diet=='A'] - A.mean)^2, (coag$coag[coag$diet=='B'] - B.mean)^2, (coag$coag[coag$diet=='C'] - C.mean)^2, (coag$coag[coag$diet=='D'] - D.mean)^2 )
+
+SSM= SST- SSE
+
+c(SST=SST,SSE=SSE,SSM=SSM)
+
+```
+
+```{r}
+anova(coag.model)
+
+anova(coag.model.null,coag.model.full)
+
+```
+
+## 2 Experiment plan
+Check what experiment plan (basis) R uses in lm with model.matrix (coag.model)
+
+Fit alternative model without intercept.
+Check its experiment plan (basis).
+```{r}
+coag.altmodel<-lm(coag~diet-1,data=coagulation)
+summary(coag.altmodel)
+
+anova(coag.altmodel)
+
+model.matrix(coag.altmodel)
+
+```
+
+```{r}
+test_dat <- read.table(paste('~/Documents/UChicago/Courses/Statistical Analysis/Assignments/Week 8/','Week8_Test_Sample.csv',sep = '/'), header=TRUE)
+
+```
+
+```{r}
+anova(lm(test_dat$Output ~ test_dat$Treatment))
+summary(lm(test_dat$Output ~ test_dat$Treatment))
+SSM = 126.64 #between
+SST = 126.64 + 201.96
+SSE = 201.96 #within
+```
+```{r}
+anova(lm(test_dat$Output ~ test_dat$Treatment-1))
+summary(lm(test_dat$Output ~ test_dat$Treatment-1))
+SSMalt = 740.35
+SSEalt = 201.95 #within
+(SSTalt = SSMalt+SSEalt)
+
+(SST.test = sum((test_dat$Output- 0)^2))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

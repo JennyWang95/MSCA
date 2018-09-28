@@ -1,0 +1,314 @@
+---
+title: "W4 Homework Analysis of Residuals of a Linear Model"
+output: html_document
+---
+
+## 1. Data
+Look at the sample in the file ResidualAnalysisProjectData_1.csv: The first rows and the X-Y plot are:
+
+```{r}
+datapath<-"~/Documents/UChicago/Courses/Statistical Analysis/Assignments/Week 4"
+LinearModelData<-read.csv(file=paste(datapath,"ResidualAnalysisProjectData_1.csv",sep="/"))
+head(LinearModelData)
+plot(LinearModelData$Input,LinearModelData$Output)
+```
+
+## 2. Fitting LM
+Estimate linear model using function lm() look at the output of the function
+```{r}
+Estimated.LinearModel <- lm(Output ~ Input,data=LinearModelData)
+names(Estimated.LinearModel)
+```
+
+### 2.1 Object lm()
+Explore the elements of the object lm:
+1. Coefficients
+
+```{r}
+Estimated.LinearModel$coefficients
+```
+
+2. Residuals (make a plot). How residuals are calculated? 
+**residual=observed-predicted**
+**what is index in x-axis? that's the observation index, 1st, 2nd...1000th**
+```{r}
+plot(Estimated.LinearModel$residuals)
+```
+
+3. Find out what are fitted.values
+```{r}
+head(Estimated.LinearModel$fitted.values)
+```
+**They are predicted values of output**
+
+### 2.2 Object of summary
+Look at the summary.
+```{r}
+summary(Estimated.LinearModel)
+```
+
+Interpret the summary.
+```{r}
+names(summary(Estimated.LinearModel)) #different from names(Estimated.LinearModel)
+```
+
+What is summary(Estimated.LinearModel)$sigma?
+```{r}
+summary(Estimated.LinearModel)$sigma
+summary(Estimated.LinearModel)$sigma^2
+```
+**Summary(Estimated.LinearModel)$sigma is Residual standard error: 0.8389 **
+
+Check how summary(Estimated.LinearModel)$sigma is calculated in the object summary(Estimated.LinearModel) by reproducing the square of it:
+1. Using var() (the resulting variable is sigmaSquared.byVar)
+2. Using only sum() (the resulting variable is sigmaSquared.bySum)
+
+```{r}
+sigmaSquared.byVar = var(Estimated.LinearModel$residuals)*999/998 # n − 2 is the degrees of freedom (we lose two degrees of freedom because we estimate the two parameters α and β)
+sigmaSquared.bySum = sum((Estimated.LinearModel$residuals-mean(Estimated.LinearModel$residuals))^2)/998
+```
+
+Compare the two calculations with summary(Estimated.LinearModel)$sigma^2.
+```{r}
+c(sigmaSquared.byVar=sigmaSquared.byVar,sigmaSquared.bySum=sigmaSquared.bySum,fromModel=summary(Estimated.LinearModel)$sigma^2)
+```
+
+## 3 Analysis of residuals
+### 3.1 Residuals of the model
+
+Observe the residuals, plot them against the input.
+```{r}
+Estimated.Residuals <- Estimated.LinearModel$residuals
+plot(LinearModelData$Input, Estimated.Residuals)
+```
+
+And their probability density in comparison with the normal density.
+
+```{r}
+Probability.Density.Residuals <- density(Estimated.Residuals) #smoothing
+plot(Probability.Density.Residuals, ylim = c(0, 0.5))
+lines(Probability.Density.Residuals$x, dnorm(Probability.Density.Residuals$x, 
+    mean = mean(Estimated.Residuals), sd = sd(Estimated.Residuals)))
+```
+
+**From the plots above, we can clearly see that the residual is not a normal distribution, our data set may not be from a linear model, but two.**
+
+### 3.2 Clustering the sample
+Calculate mean values of negative residuals and positive residuals.
+```{r}
+c(Left.Mean = mean(Estimated.Residuals[Estimated.Residuals < 0]), # A METHOD for separating samples (there are other methods), because we don't really have means to know which distribution exactly are each point comes from, although we know they probably come from two normal distributions. 
+  Right.Mean = mean(Estimated.Residuals[Estimated.Residuals > 0]))
+```
+
+Separate the given sample into 2 subsamples: one, for which the residuals are below zero and another, for which they are above zero. Create variable Unscrambled.Selection.Sequence estimating switching between the two subsamples (1 corresponds to the positive residual case and 0 corresponds to the negative residual case).
+
+```{r}
+Unscrambled.Selection.Sequence = rep(0, 1000)
+for (i in 1:length(Estimated.Residuals)){
+  Unscrambled.Selection.Sequence[i] = ifelse(Estimated.Residuals[i]>0,1,0)
+}
+head(Unscrambled.Selection.Sequence,30)
+```
+
+
+Matrix LinearModel1.Recovered contains all rows of the original data for which residuals are greater than zero.
+Matrix LinearModel2.Recovered contains all rows of the original data for which residuals are less than zero.
+```{r}
+X1 = Y1 = X2 = Y2 = rep(NA,1000)
+
+for (i in 1:length(Estimated.Residuals)){
+  if (Estimated.Residuals[i]>0){
+    X1[i]=LinearModelData$Input[i]
+    Y1[i]=LinearModelData$Output[i]
+  }else{
+    X2[i]=LinearModelData$Input[i]
+    Y2[i]=LinearModelData$Output[i]
+  }
+}
+LinearModel1.Recovered= cbind.data.frame(X1,Y1)
+LinearModel2.Recovered= cbind.data.frame(X2,Y2)
+head(cbind(LinearModel1.Recovered,LinearModel2.Recovered),30)
+```
+
+
+```{r}
+matplot(LinearModelData$Input, cbind(LinearModel1.Recovered[, 2], LinearModel2.Recovered[,2]), 
+        type = "p", col = c("green", "blue"), pch = 19, ylab = "Separated Subsamples")
+
+plot(Unscrambled.Selection.Sequence[1:100], type = "s")
+
+```
+
+3.3 Confusion matrix
+There is a common measure for comparison of the estimated Unscrambled.Selection.Sequence and the true selection sequence that may be known from the training data set. The measure is called confusion matrix.
+```{r}
+library(caret)
+```
+Confusion matrix for comparison of Unscrambled.Selection.Sequence estimated in the project with the true selection sequence used to create the data is:
+
+```{r}
+cm<-matrix(c(450,50,450+50,42,458,42+458,450+42, 50+458, sum(450,50,42,458)),3,3, dimnames = list(c("Pred 0","Pred 1", "row.sum"),c("Act 0","Act 1","col.sum")))
+cm
+# because the erros are from two normal distributions, and there should be and must be some points we characterized as the green group that fall into the smaller than 0 side
+# the selection.sequence.true contains the actual data selection that allows us to do this analysis. 
+```
+
+The elements C(Pred,Act) of the table are:
+
+True negative C(0,0) 450
+True positive C(1,1) 458
+False negative C(0,1) 42
+False positive C(1,0) 50
+Then there are several characteristics of prediction quality with following definitions:
+
+Accuracy: P(Prediction correct)
+Sensitivity: P(Pred=1|Act=1)
+Specificity: P(Pred=0|Act=0)
+Balanced accuracy: 1/2(Sensitivity + Specificity)
+Calculate accuracy, sensitivity, specificity and balanced accuracy for the confusion table above.
+
+```{r}
+accuracy <- (450+458)/1000
+sensitivity <- 458/500
+specificity <- 450/500
+balancedAccuracy <- (458/500+450/500)/2
+
+c(Accuracy=accuracy,
+  Sensitivity=sensitivity,
+  Specificity=specificity,
+  Balanced=balancedAccuracy)
+```
+
+**It seems caret can calculate it by functions?** 
+**Yes, but you need the actual datase sequence.selection.true**
+
+## 4 Estimating models for subsamples
+### 4.1 Fitting models
+
+Now estimate the linear models from the subsamples.
+```{r}
+LinearModel1.Recovered.lm = lm(LinearModel1.Recovered$Y1~LinearModel1.Recovered$X1)
+LinearModel2.Recovered.lm = lm(LinearModel2.Recovered$Y2~LinearModel2.Recovered$X2)
+```
+
+
+### 4.2 Comparison of the models
+
+Compare the results of fitting of the first recovered linear model:
+```{r}
+summary(LinearModel1.Recovered.lm)$coefficients
+##                              Estimate  Std. Error  t value      Pr(>|t|)
+## (Intercept)                 0.7331544 0.019479048 37.63810 8.716159e-149
+## LinearModel1.Recovered[, 1] 0.8012446 0.008346118 96.00207  0.000000e+00
+summary(LinearModel1.Recovered.lm)$sigma
+## [1] 0.4389739
+summary(LinearModel1.Recovered.lm)$df
+## [1]   2 506   2
+summary(LinearModel1.Recovered.lm)$r.squared
+## [1] 0.9479552
+summary(LinearModel1.Recovered.lm)$adj.r.squared
+## [1] 0.9478524
+
+```
+
+```{r}
+summary(LinearModel2.Recovered.lm)$coefficients
+##                               Estimate  Std. Error   t value      Pr(>|t|)
+## (Intercept)                 -0.6941222 0.020008001 -34.69223 4.708656e-134
+## LinearModel2.Recovered[, 1]  0.8107406 0.008586561  94.41971 1.557398e-316
+summary(LinearModel2.Recovered.lm)$sigma
+## [1] 0.4433244
+summary(LinearModel2.Recovered.lm)$df
+## [1]   2 490   2
+summary(LinearModel2.Recovered.lm)$r.squared
+## [1] 0.9479005
+summary(LinearModel2.Recovered.lm)$adj.r.squared
+## [1] 0.9477942
+
+```
+with the summary of the fit to the whole sample.
+
+The sigma parameters:
+```{r}
+c(summary(Estimated.LinearModel)$sigma,
+  summary(LinearModel1.Recovered.lm)$sigma,
+  summary(LinearModel2.Recovered.lm)$sigma)
+```
+
+The ρ2:
+```{r}
+c(summary(Estimated.LinearModel)$r.squared,
+  summary(LinearModel1.Recovered.lm)$r.squared,
+  summary(LinearModel2.Recovered.lm)$r.squared)
+```
+
+The F-statistics:
+```{r}
+rbind(LinearModel=summary(Estimated.LinearModel)$fstatistic,
+      LinearModel1.Recovered=summary(LinearModel1.Recovered.lm)$fstatistic,
+      LinearModel2.Recovered=summary(LinearModel2.Recovered.lm)$fstatistic)
+```
+
+Here is how we can calculate p-values of F-test using cumulative probability function of F-distribution:
+```{r}
+c(LinearModel=pf(summary(Estimated.LinearModel)$fstatistic[1], 
+                 summary(Estimated.LinearModel)$fstatistic[2], 
+                 summary(Estimated.LinearModel)$fstatistic[3],lower.tail = FALSE),
+  LinearModel1.Recovered=pf(summary(LinearModel1.Recovered.lm)$fstatistic[1], 
+                            summary(LinearModel1.Recovered.lm)$fstatistic[2], 
+                            summary(LinearModel1.Recovered.lm)$fstatistic[3],lower.tail = FALSE),
+  LinearModel2.Recovered=pf(summary(LinearModel2.Recovered.lm)$fstatistic[1], 
+                            summary(LinearModel2.Recovered.lm)$fstatistic[2], 
+                            summary(LinearModel2.Recovered.lm)$fstatistic[3],lower.tail = FALSE))
+
+```
+
+Compare the combined residuals of the two separated models with the residuals of Estimated.LinearModel
+```{r}
+# Plot residuals
+matplot(cbind(MixedModel.residuals=c(summary(LinearModel1.Recovered.lm)$residuals,
+                                     summary(LinearModel2.Recovered.lm)$residuals),
+              Single.Model.residuals=summary(Estimated.LinearModel)$residuals),
+        type="p",pch=16,ylab="Residuals before and after unscrambling")
+```
+
+
+```{r}
+# Estimate standard deviations
+apply(cbind(MixedModel.residuals=c(summary(LinearModel1.Recovered.lm)$residuals,
+                                   summary(LinearModel2.Recovered.lm)$residuals),
+            Single.Model.residuals=summary(Estimated.LinearModel)$residuals),2,sd)
+```
+**What is the difference between the quality of fit? What is the difference between the two estimated models? Try to guess how the model data were simulated and with what parameters?**
+
+**The model data were generated with two different random normal distribution of Eps, with same uniform distribution of x **
+
+## Test
+```{r}
+dataPath<-"~/Documents/UChicago/Courses/Statistical Analysis/Assignments/Week 4"
+dat <- read.table(paste(dataPath,'Week4_Test_Sample.csv',sep = '/'), header=TRUE)
+Estimated.LinearModel2 <- lm(dat$Y ~ dat$X)
+plot(Estimated.LinearModel2$residuals)
+```
+
+
+```{r}
+Probability.Density.Residuals2 <- density(Estimated.LinearModel2$residuals)
+plot(Probability.Density.Residuals2, ylim = c(0, 0.5))
+lines(Probability.Density.Residuals2$x, dnorm(Probability.Density.Residuals2$x, 
+    mean = mean(Estimated.LinearModel2$residuals), sd = sd(Estimated.LinearModel2$residuals)))
+```
+
+```{r}
+Unscrambled.Selection.Sequence2 = rep(0, 1000)
+for (i in 1:1000){
+  Unscrambled.Selection.Sequence2[i] = ifelse(Estimated.LinearModel2$residuals[i]>0,1,0)
+}
+```
+
+
+```{r}
+res <- list(Unscrambled.Selection.Sequence2 =  Unscrambled.Selection.Sequence2)
+write.table(res, file = paste(dataPath,'result.csv',sep = '/'), row.names = F)
+```
+

@@ -1,0 +1,160 @@
+---
+title: "Week 1 Assignment 2_Elyse Zhang"
+output: html_document
+---
+## 1. Convergence of probability of tail to 0.5
+Check that frequency of “Tails” (outcome equals 1) converges to 0.5 as the number of tosses grows. What does this say about fairness of the coin? **If it converges to 0.5, it means that the coin is fair**
+
+Generate the sample
+```{r}
+set.seed(12345) # Use the seed for reproducibility
+nFlips<-100000 # Set the number of flips to 100,000
+Flips<-sample(0:1,nFlips,repl=T) #Simulate flips, i.e.sequence of 100,000 zeros (“Heads”) or ones (“Tails”) using function or rbinom(nFlips,1,.5) or (runif(nFlips)<.5)
+```
+
+The following code creates trajectory of frequencies of 1 (Tails) and plots them as function of trajectory length.
+```{r}
+Trajectory <- cumsum(Flips) # If Xi is an outcome number i of tossing a fair coin, i.e. Xi=1 if the outcome is “Tails” and Xi=0 if the outcome is “Heads”. The trajectory of number of tails in n coin tosses
+
+freq <- Trajectory/(1:nFlips) #T/n for n from 1 to N
+
+plot(1:length(freq),freq, ylim=c(.4,1),type="l",ylab="Frequency",xlab="Sample Length")
+lines(c(0,nFlips),c(.5,.5)) # plot the frequency for 100000 flips
+
+plot(1:4000,freq[1:4000], ylim=c(.4,1),type="l",ylab="Frequency",xlab="Sample Length") 
+lines(c(0,4000),c(.5,.5)) # plot the frequency for 4000 flips
+
+plot(1:10000,freq[1:10000], ylim=c(.4,1),type="l",ylab="Frequency",xlab="Sample Length") 
+lines(c(0,10000),c(.5,.5)) # plot the frequency for 10000 flips
+
+```
+
+**Intepretation: We can see from the graphs, that the frequency of “Tails” (outcome equals 1) converges to 0.5 as the number of tosses is very large sunch as 10^5. When the flip number is smaller such as 4000, the frequency of “Tails” fluctuates until the number reaches about 10^4. It also shows that the coin is fair.**
+
+## 2. Check your intuition about random walks
+Let Xi=1 if the outcome of i-th coin flip is “Tails” and Xi=−1 if the outcome is “Heads”.
+
+### 2.1. One trajectory
+Create trajectory of wealth in a game which either pays $1 with probability 0.5 or results in loss of $1 on each step.
+Assume that the game is played 1,000,000 times.
+Use the same seed.
+Increase the number of flips to 1,000,000.
+
+```{r}
+nFlips<-1000000; #Set the number of flips to 100,000
+set.seed(12345) # Use the seed for reproducibility
+Flips<-(sample(0:1,nFlips,repl=T)-.5)*2  #Simulate flips, i.e.sequence of 100,000 -0.5*2 (“Heads”) or 0.5*2 (“Tails”)
+```
+
+**Find at least one alternative way of simulating variable Flips.**
+
+```{r}
+set.seed(12345) # Use the seed for reproducibility
+altFlips<-sample(c(-1,1),nFlips,repl=T) #Simulate flips, i.e.sequence of 100,000 -1 (“Heads”) or 1 (“Tails”)
+
+head(cbind(Flips,altFlips)) 
+sum((Flips-altFlips)!=0) # put the orginal and alternative simulations together and compare if there is any difference
+```
+
+```{r}
+set.seed(12345) # Use the seed for reproducibility
+sample.space <- c(1,-1) 
+altFlips2 <- sample(sample.space, 
+                size = nFlips, 
+                replace = TRUE, 
+                prob = c(0.5, 0.5)) #Simulate flips, i.e.sequence of 100,000 -1 (“Heads”) or 1 (“Tails”)
+
+head(cbind(Flips,altFlips2))
+sum((Flips-altFlips2)!=0) # put the orginal and alternative simulations together and compare if there is any difference
+```
+
+
+**Check your intuition by answering questions before calculation:**
+
+* How much do you expect the trajectory of wealth to deviate from zero **very small, <1% of the total possible wealth (N dollar), because the coin is fair so it may be close to normal distribution with mean of zero.**
+
+* How long do you expect it to stay on one side above or below zero? **close to half of the time because the coin is fair, and it may look like normal distribution**
+
+```{r}
+oneTrajectory<-cumsum(Flips) #The trajectory of number of tails in n coin tosses
+plot(oneTrajectory, ylim=c(-1000,1000),type="l") 
+lines(c(0,nFlips),c(0,0)) #plot of trajectory with upper and lower limit equal to -1000 and 1000 and a straight line on zero
+```
+
+**Comment out set.seed**
+```{r}
+nFlips<-1000000;
+# set.seed(12345)
+Flips<-(sample(0:1,nFlips,repl=T)-.5)*2
+oneTrajectory<-cumsum(Flips)
+plot(oneTrajectory, ylim=c(-1000,1000),type="l")
+lines(c(0,nFlips),c(0,0))
+```
+
+**Observation vs. Expected**
+
+* **The trajectory of wealth indeed deviate from zero less than 1% of 10^6, in fact, since it does not exceeds (-1000,1000) in almost all of the trials, it deviate from zero only 0.1% of time**
+
+* **With or without the set.seed, it did not match my expectations very well for half time above the zero and half time below. It seems that it's random. (but in 2.3 we would known that it's not random).**
+
+### 2.2. Multiple trajectory
+
+**What do you expect the probabilities of the following events to be?**
+
+For 500 coin flips
+
+* Probablity of difference of head and tail counts are less than 5 (1% of 500 tosses) **somewhat small chance, 5 %, because it might be like a binominal distribution, it's going to be a small chance**
+* Probablity of difference of head and tail counts are more than than 25 (5% of 500 tosses) **pretty good chance, 20%, again from binomial distribution point, it should be pretty big chance, although the coin is fair**
+
+Turn the sample Flips of 1,000,000 coin flips into 2000 random walk samples, each is 500 long. Calculate 2000 cumulative trajectories. Each trajectory at each point shows the difference between the number of “Tails” and the number of “Heads”.
+
+**Find how many times out of 2,000 runs:**
+
+* Trajectories end less than 5 points away from zero (5 is 1% of 500 tosses)
+* Trajectories end more than 25 points away from zero (25 is 5% of 500 tosses)
+
+Estimate the probabilities of such deviations.
+```{r}
+set.seed(12345)
+Flips<-(sample(0:1,nFlips,repl=T)-.5)*2
+
+Trajectories2000by500<-t(apply(matrix(Flips,ncol=500),1,cumsum)) # set dimention of total 1000000 flips
+dim(Trajectories2000by500) # check dimention of total 1000000 flips
+
+(probability.less.than.5<-sum(abs(Trajectories2000by500[,500])<5)/2000) #Trajectories end less than 5 points away from zero 
+ 
+(probability.greater.than.25<-sum(abs(Trajectories2000by500[,500])>=25)/2000) #Trajectories end more than 25 points away from zero 
+
+```
+
+**Observation vs. Expected**
+
+* **Probablity of difference of head and tail counts are less than 5 (1% of 500 tosses) is actually 18 %, quite large and very different from my intuition **
+* **Probablity of difference of head and tail counts are more than 25 (5% of 500 tosses) is calculated to be 0.2515, slighly larger than what I guessed, which is 20% **
+
+### 2.3. Time on One Side
+
+How long do you expect trajectory of random walk to spend on one side from zero, below or above? (Answer before doing calculations)? **I thought it would be random as Section 2.1 between 0 and 500.**
+
+```{r}
+timeAbove<-apply(Trajectories2000by500,1,function(z) sum(z>0))
+hist(timeAbove) #histogram of 2000 trajectories of how long they stayed on positive side.
+```
+
+**Observation vs. Expected**
+
+My intuition is not correct, the time on one side is not exactly random but U shaped
+
+**Explain the observed distribution**
+
+More specifically, time above with less than 50 (10% of the total toss) and above 450 (90% of the total toss) are much more frequent than other numbers. The time above frequency first decreases with increasing time above, reaching it's lowest for around half of the total toss, then it increases with increasing time above. 
+
+**Search for the name of the law that we are observing on the last histogram**
+
+Arcsine law: the Arcsine Law, (sometimes known as the law of long leads), says
+that in a coin-tossing games, a surprisingly large fraction of sample
+paths leave one player in the lead almost all the time, and in very few
+cases will the lead change sides and fluctuate in the manner that is
+naively expected of a well-behaved coin. Interpreted geometrically as random walks, the path crosses the x-axis rarely, and with increasing duration of the walk, the frequency of crossings decreases, and the lengths of the “leads” on one side of the
+axis increase in length. (source: https://www.math.unl.edu/~sdunbar1/ProbabilityTheory/Lessons/BernoulliTrials/ArcsineLaw/arcsinelaw.pdf)
+
