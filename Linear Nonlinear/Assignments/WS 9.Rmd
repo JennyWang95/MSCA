@@ -1,0 +1,389 @@
+---
+title: "LNL  Workshop 9"
+author: "Elyse Zhang"
+date: "8/22/2018"
+output: html_document
+---
+
+```{r}
+conditionalEcho<-F
+```
+
+
+
+Beta 0 should be the same for LM and from the fixed effects from random effect 
+
+
+After REML = false
+residual std is the same for both random effects
+just the operate operator (Intercept) 0.2139  is different 
+
+ANOVA can only be done with ML can't use REML
+the p is large  meaning models are the same the random effect is not useful
+
+Force REML to compare with Null, it will give same results as above
+
+
+More shrinkage is guaranteed by from REML compared to RF
+
+Prediction:
+1: if new observation, we can only predict it to be the grand mean
+
+black red dot plot
+This is how much we can shrink now, however, if we have baysian, we can shrink it more with T distribution
+
+p is large: still cannot see the effect of the treatment. This method is justified when we don't care about the blend predictor.
+
+### 2.1 Longitudinal Data
+
+
+
+
+I(year-78) centered by 78
+
+( cyear| person) random slope 
+
+
+factor(subject) : make the subject categorical and 
+
+model improved, sacrified 40 dfs
+NAs was because the variation
+
+std of random effect is larger, shrinkage is smaller
+
+
+### 4.1 Model allowing correlation
+Fit a model with fixed intercept and slope showing the general tendency and individual slopes and intercepts for each subject.
+
+Fit model fm8 using lmer() with parameter REML=F including random effects for individual intercepts and slopes.
+
+```{r}
+suppressWarnings(library(lattice))
+suppressWarnings(library(faraway))
+suppressWarnings(library(lme4))
+
+head(sleepstudy)
+```
+
+
+Fit 2 variations of the model:
+
+One has conditional correlation between random effects of the same subject which allows to suggest in particular that individuals with initially higher reaction time are affected by sleep deprivation more.
+The second model has independent random effects.
+
+If anova and the same, then 
+
+
+```{r}
+fm8 = lmer(Reaction ~ 1 + Days + (1+ Days|Subject), REML = F, data = sleepstudy)
+
+summary(fm8)
+```
+
+```{r}
+fm8_alt = lmer(Reaction ~  Days + (Days|Subject), REML = F, data = sleepstudy)
+
+summary(fm8_alt)
+```
+
+
+
+10.467, slope for days, 10.467 second increase with one day of sleepless, individual slope is is between std is 5.717, between 0 to 20
+
+
+
+251.405 average reaction time of ppl when experiment didn't start STD of individual ppl before (  25.592 is epsilon ), ppl are between 200 -300 beta0 + epsilon
+
+
+
+```{r}
+head(ranef(fm8)$Subject)
+```
+
+```{r}
+confint(fm8)
+```
+
+sigma is sigma epsilon
+sig 02 (intercept and random) is not significant because it include 
+
+
+
+4.2 Model with uncorrelated random effects
+In order to request an independent random effects we need to specify individual intercept and individual slope as two terms.
+However, formula Reaction~1+Days+(1|Subject)+(Days|Subject) is not going to work because (Days|Subject) is equivalent to  (1+Days|Subject).
+Set formula as Reaction~1+Days+(1|Subject)+(0+Days|Subject).
+The last term in the formula can also be replaced with (-1+Days|Subject).
+
+
+4.4 Profile Zeta plots
+streight line, every direction will decrease likelihood equally, 
+
+
+above line : original data, below: z-scored
+
+
+5.2 Selecting model
+```{r}
+library(nlme)
+data(Oxboys,package="nlme")
+head(Oxboys)
+```
+
+
+```{r}
+fm1 = lmer(height ~ age + I(age^2) + (1| Subject), data = Oxboys, REML = F)
+summary(fm1)
+```
+
+
+
+```{r}
+head(ranef(fm1)$Subject)
+
+```
+
+sigma is always curved
+
+```{r}
+fm2 = lmer(height ~ age + (1| Subject), data = Oxboys, REML = F)
+```
+
+```{r}
+head(ranef(fm2)$Subject)
+```
+
+
+HW
+##1 Homework Project
+The data in the file HIV_Protease.csv show part of the analysis of HIV enzyme called Protease. Protease plays important role in spreading the virus and is often targeted by drugs trying to contain the virus in patient.
+
+The data source is www.kaggle.com
+
+Because HIV virus mutates it develops resistance to drugs when codons in certain positions in the sequence enzyme get replaced by other codons.
+
+Read the data.
+
+```{r}
+dataPath = '/Users/Elyse/Documents/UChicago/Courses/Summer 2018/Linear Nonlinear/Course Material/Lecture 9'
+
+HIV.Protease.Data<-read.csv(file=paste(dataPath,"HIV_Protease.csv",sep="/"),header=TRUE,sep=",")
+head(HIV.Protease.Data)
+
+```
+
+The first column shows effect of the treatment on number of patients: 0 means no effect (resistance to drug) and 1 means successful treatment.
+
+The second column shows the virus load, i.e. some measure of number of viruses in patient’s body before the treatment.
+
+The last column shows the symbol in the second position (CODON_2) of HIV Protease which each patient has.
+
+Show all possible expressions of CODON_2 and how many times they appear in the last column.
+
+```{r}
+table(HIV.Protease.Data$CODON_2)
+```
+
+Show the levels of VL that appear in combination with expression “caa” and look at the histogram of VL values.
+
+```{r}
+HIV.Protease.Data.caa.VL<-subset(HIV.Protease.Data$VL,HIV.Protease.Data$CODON_2=="caa")
+hist(HIV.Protease.Data.caa.VL)
+```
+
+Do the same for the expression “cag”
+
+```{r}
+HIV.Protease.Data.cag.VL<-subset(HIV.Protease.Data$VL,HIV.Protease.Data$CODON_2=="cag")
+hist(HIV.Protease.Data.cag.VL)
+```
+
+Compare the means.
+
+```{r}
+c(mean(HIV.Protease.Data.cag.VL),mean(HIV.Protease.Data.caa.VL))
+## [1] 4.314616 4.248239
+```
+
+Fit linear model using CODON_2 as predictor for VL.
+
+```{r}
+lm.CODON_2.VL = lm(VL ~ CODON_2, data = HIV.Protease.Data)
+```
+
+```{r}
+AIC(lm.CODON_2.VL)
+## [1] 1931.876
+anova(lm.CODON_2.VL)
+```
+
+The means do not seem to be different. Explain why we make such conclusion.
+
+Fit the model with random effect.
+
+```{r}
+lm.CODON_2.VL.Mixed = lmer(VL ~ (1|CODON_2),data = HIV.Protease.Data )
+```
+
+```{r}
+AIC(lm.CODON_2.VL.Mixed)
+## [1] 1936.485
+```
+
+Compare the fit with model with fixed effect. Fixed effect seems to be better
+
+Fit logistic regression Resp~VL
+
+```{r}
+glm.CODON_2.VL = glm(Resp~VL, family = binomial, data = HIV.Protease.Data)
+```
+
+```{r}
+AIC(glm.CODON_2.VL)
+```
+
+```{r}
+matplot(1:length(HIV.Protease.Data$Resp),cbind(HIV.Protease.Data$Resp,glm.CODON_2.VL$fitted.values),pch=16,
+        ylab="Fitted Values and Response",xlab="Index")
+```
+
+```{r}
+head(cbind(HIV.Protease.Data$Resp,glm.CODON_2.VL$fitted.values))
+```
+
+Fit model with CODON_2 expression as random effect for Resp using glmmPQL().
+```{r}
+suppressWarnings(library(MASS))
+```
+
+```{r}
+glm.CODON_2.LV = glmmPQL(Resp ~ VL , random = ~ 1|CODON_2 , family = binomial, data = HIV.Protease.Data)
+```
+
+```{r}
+AIC(glm.CODON_2.LV)
+##    
+## NA
+names(glm.CODON_2.LV)
+```
+
+```{r}
+plot(predict(glm.CODON_2.LV,type="response"),ylab="Predicted Values")
+
+head(cbind(HIV.Protease.Data$Resp,predict(glm.CODON_2.LV,type="response")))
+##   [,1]        [,2]
+## 1    0 0.011007172
+## 1    0 0.003891051
+## 1    0 0.002142827
+## 1    0 0.082863203
+## 1    0 0.003352289
+## 1    0 0.006081239
+```
+
+```{r}
+test_dat <- read.table(paste(dataPath,'Week9_Test_Sample.csv',sep = '/'), header=TRUE)
+```
+
+1. Create object mFixedEffects describing general tendency of the population using lm() with variables Response and Predictor.
+```{r}
+(mFixedEffects = lm(Response ~ Predictor + Subject, data = test_dat ))
+summary(mFixedEffects)
+```
+
+```{r}
+confint(mFixedEffects)
+```
+
+
+
+2. Create mixed effects object mCorrelatedRandomEffects using lmer() with maximum likelihood optimization criterion, including fixed effects for population intercept and slope and random effects for individual intercepts and slopes allowing correlation between random effects.
+```{r}
+mCorrelatedRandomEffects = lmer(Response ~ 1 + Predictor + (1+ Predictor|Subject), REML = F, data = test_dat)
+
+summary(mCorrelatedRandomEffects)
+```
+
+```{r}
+confint(mCorrelatedRandomEffects)
+```
+Variance of subject intercept: its confidence interval is called .
+.sig01 and shows significance Variance of subject slope: confidence interval 
+.sig03 shows significance Correlation between random slope and intercept: confidence interval 
+.sig02 shows significance Residual variance: confidence interval 
+.sigma Fixed  intercept effect, significant
+Fixed slope effect, significant.
+
+
+3. Create object mIndependentRandomEffects using lmer() with maximum likelihood optimization criterion, including fixed effects for population intercept and slope and random effects for individual intercepts and slopes with uncorrelated random effects.
+
+```{r}
+(mIndependentRandomEffects <- lmer(Response ~ 1+ Predictor +(1|Subject) + (0+Predictor|Subject),test_dat,REML=F))
+summary(mIndependentRandomEffects)
+```
+
+```{r}
+confint(mIndependentRandomEffects)
+```
+Variance of subject intercept: its confidence interval is called .sig01 and shows significance
+Variance of subject slope: confidence interval .sig02 shows significance
+
+Residual variance: confidence interval .sigma
+Fixed intercept effect, significant
+Fixed slope effect, significant.
+
+
+Fixed intercept Intercept;
+Fixed slope Predictor;
+Standard deviation of random intercepts sigmaIntercept;
+Standard deviation of random slopes sigmaSlope;
+Correlation between random effects Correlatio
+
+
+```{r}
+significance = matrix(0, 5, 3)
+rownames(significance) = c("Intercept","Predictor","sigmaIntercept","sigmaSlope","Correlation")
+colnames(significance) = c("mFixedEffects","mCorrelatedRandomEffects","mIndependentRandomEffects")
+```
+
+```{r}
+significance[1:2,] = 1
+
+significance[,2] = 1
+
+significance[3:4,3] = 1
+```
+
+
+Make pairwise comparison of the three fitted models mFixedEffects, mCorrelatedRandomEffects and mIndependentRandomEffects using anova() and level of 5%. Select the best model.
+Create vector variable of length 1 with the name of the selected model: selectedModel=c("fixed_Effects","correlated_Random_Effects", "independent_Random_Effects").
+
+```{r}
+anova(mCorrelatedRandomEffects,mFixedEffects)
+```
+
+```{r}
+anova(mIndependentRandomEffects,mFixedEffects)
+```
+
+```{r}
+anova(mCorrelatedRandomEffects, mIndependentRandomEffects)
+```
+
+```{r}
+selectedModel="correlated_Random_Effects"
+```
+
+
+
+```{r}
+res <- list(selectedModel=selectedModel,
+            significance= significance)
+
+```
+
+```{r}
+saveRDS(res, file = paste(dataPath,'result.rds',sep = '/'))
+```
+
+
+

@@ -1,0 +1,863 @@
+---
+title: "LNL Workshop 5"
+author: "Elyse Zhang"
+date: "7/25/2018"
+output: html_document
+---
+
+## 1 Example from slide 8 in the Lecture Notes.
+Web server is currently registering a Poisson flow of visitors with average rate 15 visits per hour.
+
+1. What is the probability of receiving at least 10 visits in the next 30 minutes?
+7.5 / 30min 
+
+```{r }
+1- ppois(9, 7.5) 
+ppois(9, 7.5, lower.tail = FALSE)
+#P(X ≤ x) 
+#ppois(q, lambda, lower.tail = TRUE, log.p = FALSE)
+
+```
+
+2. What is the probability of receiving more than 10 visits in the next hour?
+```{r}
+ppois(10,15, lower.tail = FALSE)
+1-ppois(10,15)
+```
+
+## 2 Poisson Regression
+
+### 2.1 Data
+Data set gala contains counts of plant species on each of 30 Galapagos Islands and the number that are endemic.
+There are also 5 geographic variables for each island.
+
+```{r}
+suppressWarnings(library(faraway))
+suppressWarnings(library(MASS))
+suppressWarnings(library(AER))
+suppressWarnings(library(pscl))
+data(gala)
+head(gala)
+```
+
+```{r}
+gala <- gala[,-2]
+```
+
+### 2.2 LR: Fit linear regression and check the residuals.
+```{r}
+modl <- lm(Species ~ . , gala)
+plot(predict(modl),residuals(modl),xlab="Fitted",ylab="Residuals")
+```
+
+The plot shows non-constant variance.
+Use the square root transformation to stabilize the variance.
+```{r}
+modt <- lm(sqrt(Species) ~ . , gala)
+plot(predict(modt),residuals(modt),xlab="Fitted",ylab="Residuals")
+```
+
+Looks better
+
+
+```{r}
+summary(modt)
+```
+The fit looks pretty good, according to the determination coefficient.
+
+**HOWEVER** 
+
+looking at the residual plots, The Gaussian assumption is still very much in question.
+
+```{r}
+hist(modt$residuals)
+qqnorm(modt$residuals)
+qqline(modt$residuals)
+```
+
+See if it is possible to keep the nature of the data untransformed (counts, rather than square root of them) and find a better explanation of the data.
+```{r}
+hist(gala[,1])
+```
+
+**TRY FITDIST from MASS**
+```{r}
+(poisParam<-fitdistr(gala[,1],"poisson")) 
+```
+
+put the fitted estimate into ks.test
+```{r}
+ks.test(gala[,1],"ppois",poisParam$estimate)
+```
+
+**The Kolmogorov-Smirnov test (KS-test) tries to determine if two datasets differ significantly.**
+The hypotheses for the test are:
+Null hypothesis (H0): the data comes from the specified distribution.
+Alternate Hypothesis (H1): at least one value does not match the specified distribution.
+
+Reject the null with small p,  The fit is not great for Poisson model, but continue with the example as in the book.
+
+
+### 2.3.Poisson regression
+Fit Poisson regression.
+Main formula to remember is: ηi=ln(λi)=ln(μi).
+
+```{r}
+modp <- glm(Species ~ .,family=poisson, gala)
+summary(modp)
+
+modp$deviance
+modp$df.residual
+```
+
+* It's not a good fit because the deviance is too large for 24 degree of freedom
+* betas are all significant
+
+* Prediction of ηi is done by two ways
+```{r}
+predict(modp)
+predict(modp,type="link")
+```
+
+* And prediction of λ is done by either of the two methods.
+```{r}
+predict(modp,type="response")
+exp(predict(modp))
+```
+
+Finally, predicted probabilities of counts can be calculated as, for example for count zero:
+```{r}
+coun<-0
+dpois(coun,predict(modp,type="response"))
+
+```
+
+* Very obvious, with response μi range from 10 to 300, the chance of observe 0 is very very low. 
+
+* Overall, not a good fit, and **There may be overdispersion.**
+
+### 2.4. Methods for Testing Over-Dispersion
+There are several ways of testing for overdispersion.
+
+#### 2.4.1 A quick and rough method.
+Look at the output of glm() and compare the residual deviance with the number of degrees of freedom.
+If the assumed model is correct,  deviance is asymptotically distributed as Chi-squared (X2) with degrees of freedom n−k where n is the number of observations and k is the number of parameters.
+
+For Chi-squared distribution the mean is the number of degrees of freedom n−k.
+
+If the residual deviance returned by glm() is greater than n−k then it might be a sign of over-dispersion.
+
+**That's basically what we did in 2.3**
+
+Now we can test the method on simulated Poisson data. 
+**We shoud expect the result to be TRUE, becuase it is a poisson**
+```{r}
+Test.Deviance.Overdispersion.Poisson<-function(Sample.Size,Parameter.Lambda){
+  my.Sample<-rpois(Sample.Size,Parameter.Lambda)
+  Model<-glm(my.Sample~1,family=poisson)
+  Dev<-Model$deviance
+  Deg.Fred<-Model$df.residual
+  ((Dev-Deg.Fred)/sqrt(2*Deg.Fred)>-1.96)&((Dev-Deg.Fred)/sqrt(2*Deg.Fred)<1.96)
+} 
+set.seed(7324)
+Test.Deviance.Overdispersion.Poisson(100,1)
+```
+
+The function simulates a sample from Poisson distribution, estimates parameter λ which is simultaneously the mean value and the variance, then it checks if Deviance−Deg.Freedom2∗Deg.Freedom√ belongs to the interval (−1.96,1.96).
+If yes, the result is TRUE. Otherwise it is FALSE.
+
+Now repeat the call of the function 300 times to see how many times it returns TRUE and how many times FALSE.
+```{r}
+sum(replicate(300,Test.Deviance.Overdispersion.Poisson(100,1)))
+```
+Note that the number of passes is lower than expected for 95% confidence interval.
+This means that the test has a tendency to detect overdispersion when it is not present.
+
+The estimate of the parameter λ given by glm() is eCoefficient:
+
+```{r}
+exp(glm(rpois(1000,2)~1,family=poisson)$coeff)
+
+```
+
+
+Perform the same test on negative binomial data (we know there will be overdispersion there). should expect false
+```{r}
+Test.Deviance.Overdispersion.NBinom<-function(Sample.Size,Parameter.prob){
+  my.Sample<-rnbinom(Sample.Size,2,Parameter.prob)
+  Model<-glm(my.Sample~1,family=poisson)
+  Dev<-Model$deviance
+  Deg.Fred<-Model$df.residual
+  ((Dev/Deg.Fred-1)/sqrt(2/Deg.Fred)>-1.96)&((Dev/Deg.Fred-1)/sqrt(2/Deg.Fred)<=1.96)
+} 
+sum(replicate(300,Test.Deviance.Overdispersion.NBinom(100,.2)))
+```
+
+We see that the over-dispersed negative binomial distribution sample rarely or never passes the test.
+
+#### 2.4.2 Regression test by Cameron-Trivedi
+The test implemented in AER is described in Cameron, A.C. and Trivedi, P.K. (1990). Regression-based Tests for Over-dispersion in the Poisson Model. Journal of Econometrics, 46, 347–364.
+
+In a Poisson model, the mean is E(Y)=λ and the variance is V(Y)=λ as well.
+The test has a null hypothesis c=0 where Var(Y)=λ+c∗f(λ), c<0 means under-dispersion and c>0 means over-dispersion.
+The function f(.) is some monotonic function (linear as default or quadratic).
+The test statistic used is a t statistic which is asymptotically standard normal under the null.
+
+```{r}
+dispersiontest(glm(rpois(100,1)~1,family="poisson"),alternative="two.sided")
+```
+
+* We don't reject the null that true dispersion is equal to 1
+
+Fit a nb to this test
+```{r}
+dispersiontest(glm(rnbinom(100,size=20,prob=.7)~1,family="poisson"),alternative="two.sided")
+```
+* reject null 
+
+# IS IT  THE RATIO OF Var(Y)/E(Y)
+
+
+#### 2.4.3 
+The null hypothesis of this test is that the distribution is Poisson as particular case of Negative binomial against Negative Binomial.
+
+The references are:
+A. Colin Cameron and Pravin K. Trivedi (1998) Regression analysis of count data. New York: Cambridge University Press.
+
+Lawless, J. F. (1987) Negative Binomial and Mixed Poisson Regressions. The Canadian Journal of Statistics. 15:209-225.
+
+Required packages are MASS (to create a negative binomial object with glm.nb) and pscl, which contains the test function odTest().
+
+Apply glm.nb() from MASS to fit a negative binomial model.
+Then use odTest() from pscl to test if the data can be described by Poisson distribution (no over-dispersion) or not (over-dispersion).
+```{r}
+set.seed(958)
+NB.model.pois<-suppressWarnings(glm.nb(rpois(100,2)~1))
+names(NB.model.pois)
+```
+Theta is phi, when it's large, it means it's poisson 
+```{r}
+NB.model.pois
+summary(NB.model.pois)
+```
+
+Theta is large good, but here the std is too large.
+
+The estimated parameter eta of the model is:
+```{r}
+NB.model.pois$coefficients
+```
+
+lambda
+```{r}
+unique(exp(predict(NB.model.pois)))
+unique(predict(NB.model.pois,type="response"))
+exp(NB.model.pois$coefficients)
+```
+
+The above are still not a test yet. Now, Use the model to test for overdispersion.
+```{r}
+odTest.pois<-odTest(NB.model.pois)
+```
+
+Remember: Null: it is poisson within NB (not over dispersed, large theta)
+So we don't reject null, same conclusion as we look at the theta
+
+Repeat the same steps with simulated negative binomial distribution with the same mean value. It should allow us to reject null 
+
+```{r}
+set.seed(958)
+NB.model<-glm.nb(rnbinom(100,size=2,prob=.5)~1)
+NB.model
+summary(NB.model)
+```
+
+* Theta, very small
+```{r}
+NB.model$coefficients
+exp(NB.model$coefficients)
+```
+
+```{r}
+odTest.pois<-odTest(NB.model)
+```
+
+#### 2.4.4 Prediction by negative binomial regression
+Prediction by negative binomial model is done as either
+P(NNB=k)=Nnbinom(k;p,s),
+or
+P(NNB=k)=Nnbinom(k;μ,s),
+
+where
+Parameter μ=eηi is the mean value of the predicted count, μ=E[NNB]; μ is the response of the linear model and can be calculated from glm.nb object as predict(fit,type="response")
+Parameter p=s/(μ+s)
+Parameter s is the size of negative binomial distribution; it can be extracted from glm.nb object as estimate of parameter \theta:  fit$theta. **s here is the original meaning of phi, here it's used interchangably**
+For example, probability of count equal to zero is calculated both ways using glm.nb object as:
+
+```{r}
+(theta<-NB.model$theta)
+```
+
+
+```{r}
+coun<-0
+mu<-unique(predict(NB.model,new.data=data.frame(0),type="response"))
+
+(prob.coun.1<-unique(dnbinom(coun,mu=mu,size=theta)))
+
+p<-theta/(mu+theta)
+(prob.coun.2<-dnbinom(coun,p=p,size=theta))
+```
+
+* When lambda is 2.28, the chance of observing 0 is pretty high
+
+
+## 3 Examples of Poisson, Negative Binomial and Zero-Augmented Regressions
+
+### 3.1 Wave Soldering
+```{r}
+data(solder)
+head(solder)
+```
+
+```{r}
+modp <- glm(skips ~ . , family=poisson, data=solder)
+summary(modp)
+
+```
+
+```{r}
+(Dev<-deviance(modp))
+## [1] 1829.002
+(Deg.Fred<-df.residual(modp))
+## [1] 882
+(aicComplete<-modp$aic)
+## [1] 3967.552
+```
+
+Deviance of 1829 on 882 degrees of freedom does not look like a good fit.
+Check for overdispersion using the 3 methods to confirm that.
+```{r}
+## [1] "Method 1"
+## [1] 20.58768 24.50768
+
+## [1] "Method 2"
+##  statistic.z      p.value 
+## 9.244411e+00 1.182696e-20
+## [1] "Method 3"
+## Likelihood ratio test of H0: Poisson, as restricted NB model:
+## n.b., the distribution of the test-statistic under H0 is non-standard
+## e.g., see help(odTest) for details/references
+## 
+## Critical value of test statistic at the alpha= 0.05 level: 2.7055 
+## Chi-Square Test Statistic =  286.2428 p-value = < 2.2e-16
+```
+
+Method 1
+```{r}
+(1.96 * sqrt(2*Deg.Fred) + Deg.Fred)
+(-1.96 * sqrt(2*Deg.Fred) + Deg.Fred)
+
+((Dev-Deg.Fred)/sqrt(2*Deg.Fred)+1.96)
+((Dev-Deg.Fred)/sqrt(2*Deg.Fred)-1.96)
+
+((Dev-Deg.Fred)/sqrt(2*Deg.Fred)>-1.96)
+((Dev-Deg.Fred)/sqrt(2*Deg.Fred)<1.96)
+```
+
+
+Method 2 
+
+```{r}
+dispersiontest(modp,alternative="two.sided")
+```
+p very small, we should reject the null, so true dispersion is not equal to 1, in fact it's calcualted as 2.07
+
+Method 3: fit NB and give it to od test, look at p value
+```{r}
+NB.model.pois<-glm.nb(skips ~ . , data=solder)
+
+NB.model.pois
+```
+
+```{r}
+odTest.pois<-odTest(NB.model.pois)
+```
+
+* Reject the hypothesis that this is Poisson
+
+
+Add interaction terms
+```{r}
+modp2  <- glm(skips ~ (Opening +Solder + Mask + PadType + Panel)^2 , family=poisson, data=solder)
+#summary(modp2)
+deviance(modp2)
+```
+
+The fit is better: compare the AIC measures:
+
+```{r}
+c(modp=aicComplete,modp2=modp2$aic)
+```
+
+```{r}
+pchisq(deviance(modp2),df.residual(modp2),lower=FALSE)
+```
+
+p value too small, reject hypothesis that they are the same, It means fit is not good,  they are still too different. 
+
+Predict the probability of observing 0
+```{r}
+coun<-0
+probabil_0<-dpois(coun,predict(modp2,type="response"))
+head(probabil_0, 40)
+```
+
+```{r}
+head(solder$skips,40)
+```
+
+
+3.1.2 Because fit is not good, maybe it's nb
+
+```{r}
+modn <- glm.nb(skips ~ .,solder)
+summary(modn)
+
+modn$theta
+```
+
+Theta:  4.528  it does have over dispersion
+Residual deviance looks much better
+
+```{r}
+odTest(modn)
+```
+
+* reject H0 that it is a poisson
+```{r}
+mu = predict(modn,type="response")
+prob = modn$theta/(mu + modn$theta)
+
+probabil_0.nb<-dnbinom(coun,modn$theta, prob = prob)
+probabil_0.nb.alt<-dnbinom(coun,modn$theta, mu = mu)
+
+head(probabil_0.nb,40)
+head(probabil_0.nb.alt,40)
+```
+
+
+### 3.2 Homicide victims
+This example uses data from book
+Categorical Data Analysis, Alan Agresti, 2013, John Wileyand and Sons.
+The data are presented in Table 13.6 in section 13.4.3 of 2002 edition.
+
+This example is also analyzed here.
+
+The data are from a survey of 1308 people in which they were asked how many homicide victims they know. The variables are:
+
+resp, the number of victims the respondent knows;
+race, the race of the respondent (black or white).
+Does race help explain how many homicide victims a person knows?
+
+#### 3.2.1 Data
+Create the data in R:
+```{r}
+black <- c(119,16,12,7,3,2,0)
+white <- c(1070,60,14,4,0,0,1)
+resp <- c(rep(0:6,times=black), rep(0:6,times=white))
+race <- factor(c(rep("black", sum(black)), rep("white", sum(white))),
+                levels = c("white","black"))
+victim <- data.frame(resp, race)
+head(victim)
+```
+
+```{r}
+table(race)
+```
+
+Mean counts by race show that mean response from African Americans is higher:
+Variance of responses from both races are much higher than means, which is **a sign of overdispersion**.
+
+```{r}
+(countMeans<-with(victim, tapply(resp, race, mean)))
+
+(countVariances<-with(victim, tapply(resp, race, var)))
+```
+
+```{r}
+table(resp, race)
+```
+
+**Note large number of zeros in responses from both races.**
+
+#### 3.2.2 Poisson regression
+Fit Poisson regression explaining response by race.
+```{r}
+mPo <- glm(resp ~ race, data=victim, family = poisson)
+summary(mPo)
+
+```
+
+Race predictor is significant.
+Intensity of known homicide victims is significantly higher for black responders.
+
+Intensity of known homicide victims for white responders is represented by the intercept
+```{r}
+mPo$coefficients
+exp(mPo$coefficients[1]) 
+exp(coef(mPo)[1])
+
+```
+
+* This is the same as we calculated before
+
+Intensity for black responders is more than 5 times higher.
+```{r}
+exp(coef(mPo)[1])*exp(coef(mPo)[2])
+
+```
+
+Compare sample and model means and sample and model variances:
+```{r}
+rbind(Sample=countMeans,Model=cumprod(exp(coef(mPo))))
+
+rbind(Sample=countVariances,Model=cumprod(exp(coef(mPo))))
+```
+
+* Sample variance are much larger than model's
+
+Obviously, means are estimated exactly, but variances did not estimate very well.
+Visualize the fit by Poisson regression using rootogram() from countreg, which needs to be installed as:
+```{r}
+# install.packages("countreg", repos="http://R-Forge.R-project.org")
+
+library('countreg')
+```
+```{r}
+rootogram(mPo)
+```
+
+The red line shows square root of fitted Poisson frequency.
+
+** height should represent observed counts, observed more than fitted, it will drop below 0. **
+
+A bar hanging below 0 indicates underfitting (hang below, model underestimate, observed more than modeled). A bar hanging above 0 indicates overfitting.
+The counts are transformed with a square root transformation to prevent smaller counts from getting obscured and overwhelmed by larger counts.
+
+Note underfitting for counts 2 and higher and overfitting for the 1 count.
+
+Predicted probabilities of response equal from 0 to 6 by both races.
+
+
+```{r}
+black.ratio <- c(119,16,12,7,3,2,0)/sum(119,16,12,7,3,2,0)
+white.ratio <- c(1070,60,14,4,0,0,1)/sum(1070,60,14,4,0,0,1)
+```
+
+```{r}
+predBlack<-sapply(0:6,function(z) 
+  dpois(z,predict(mPo,newdata=data.frame(race=c("black")),type="response")))
+
+predWhite<-sapply(0:6,function(z) 
+  dpois(z,predict(mPo,newdata=data.frame(race=c("white")),type="response")))
+
+plot(0:6,predWhite,type="b",ylab="Predicted Probabilities",xlab="Counts")
+points(0:6, white.ratio, type = 'b', col = 'black', lty=2)
+points(0:6,predBlack,col="red",type="b",lwd=2)
+points(0:6, black.ratio, type = 'b', col = 'red', lty=2)
+
+legend("topright",legend=c("White predict",'White actual', "Black predict",'black actual'),lty=c(1,2),col=c("black","black","red","red"),lwd=2)
+```
+
+# WHY IS BLACK so wrongly estimated?
+
+
+#### 3.2.3 Negative binomial regression
+Fit negative binomial model using glm.nb() from MASS.
+
+```{r}
+mNb <- glm.nb(resp ~ race, data=victim)
+summary(mNb)
+```
+
+Coefficients are the same as in Poisson regression. But the standard error for the race coefficient is larger.
+Also notice the estimate of the dispersion parameter θ.
+
+```{r}
+(theta<-mNb$theta)
+```
+
+```{r}
+Mus<-sort(unique(predict(mNb,type="response")))
+rbind(Sample=countMeans,Model=Mus)
+
+rbind(Sample=countVariances,Model=Mus+Mus^2/mNb$theta)
+```
+This time model variances are not obviously underestimated relative to sample variances.
+
+Visualize the fit.
+```{r}
+rootogram(mNb)
+```
+
+This rootogram looks much better.
+
+Plot predicted probabilities of response equal from 0 to 6 by both races.
+
+```{r}
+mu<-predict(mPo,newdata=data.frame(race=c("black")),type="response")
+predBlack<-sapply(0:6,function(z) dnbinom(z,mu=mu,size=mNb$theta))
+mu<-predict(mPo,newdata=data.frame(race=c("white")),type="response")
+predWhite<-sapply(0:6,function(z) dnbinom(z,mu=mu,size=mNb$theta))
+
+plot(0:6,predWhite,type="b",ylab="Predicted Probabilities",xlab="Counts")
+points(0:6, white.ratio, type = 'b', col = 'black', lty=2)
+points(0:6,predBlack,col="red",type="b",lwd=2)
+points(0:6, black.ratio, type = 'b', col = 'red', lty=2)
+
+legend("topright",legend=c("White predict",'White actual', "Black predict",'black actual'),lty=c(1,2),col=c("black","black","red","red"),lwd=2)
+```
+
+
+### 3.3 Demand for medical care by elderly
+#### 3.3.1 Data
+The data contain records on 4406 individuals, aged 66 and over, who are covered by Medicare, a public insurance program.
+
+Originally the data were obtained from the US National Medical Expenditure Survey (NMES) for 1987/88.
+
+The objective is to model the demand for medical care as captured by the number of physician/non-physician office and hospital outpatient visits by the covariates available for the patients.
+```{r}
+dataPath = '/Users/Elyse/Documents/UChicago/Courses/Summer 2018/Linear Nonlinear/Course Material/Lecture 5'
+load(paste(dataPath,"DebTrivedi.rda",sep="/"))
+dat <- DebTrivedi[, c(1, 6:8, 13, 15, 18)]
+head(dat)
+```
+
+```{r}
+dat$health<-as.factor(dat$health)
+dat$gender<-as.factor(dat$gender)
+dat$privins<-as.factor(dat$privins)
+```
+
+Use the number of physician office visits ofp as the dependent variable and as regressors use:
+
+ 1. The health status variables:
+* hosp (number of hospital stays),
+* health (self-perceived health status),
+* numchron (number of chronic conditions),
+2. And socioeconomic variables, such as:
+* gender,
+* school (number of years of education),
+* privins (private insurance indicator).
+
+Observe the histogram of the response.
+```{r}
+plot(table(dat$ofp))
+```
+
+The plot shows significant number of zeros and high variance.
+Too many zeros for poisson distribution
+
+Prepare functions for visualization of the relationships between each predictor and the response as here.
+```{r}
+clog <- function(x) log(x + 0.5) # Continuity corrected log
+
+cfac <- function(x, breaks = NULL) { # make count variable a factor
+ if(is.null(breaks)) breaks <- unique(quantile(x, 0:10/10))
+ x <- cut(x, breaks, include.lowest = TRUE, right = FALSE)
+ levels(x) <- paste(breaks[-length(breaks)], ifelse(diff(breaks) > 1,
+ c(paste("-", breaks[-c(1, length(breaks))] - 1, sep = ""), "+"), ""),
+ sep = "")
+ return(x)
+}
+```
+
+```{r}
+plot(clog(ofp) ~ cfac(numchron), data = dat)
+
+```
+
+Number of visits increases with number of chronic conditions.
+
+```{r}
+plot(clog(ofp) ~ health, data = dat, varwidth = TRUE)
+```
+
+Number of visits decreases with better health.
+
+```{r}
+plot(clog(ofp) ~ privins, data = dat, varwidth = TRUE)
+```
+
+Those who hold private insurance visit doctors slightly more often based on medians, but have fat tail on the upside.
+
+```{r}
+plot(clog(ofp) ~ cfac(hosp, c(0:2, 8)), data = dat)
+```
+
+Number of hospital stays is positively correlated with number of visits to doctors.
+
+```{r}
+plot(clog(ofp) ~ gender, data = dat, varwidth = TRUE)
+```
+
+Medians and upper quartiles are very similar between men and women. But men have lower 25% quartile, higher non-outlier maximum and longer tail of outliers on the upside.
+
+```{r}
+plot(cfac(ofp, c(0:2, 4, 6, 10, 100)) ~ school, data = dat, breaks = 9)
+```
+
+With number of years of education the number of visits grows.
+
+#### 3.3.2 Poisson regression
+```{r}
+fm_pois <- glm(ofp ~ ., data = dat, family = poisson)
+summary(fm_pois)
+```
+
+All Poisson coefficients are significant.
+But we have very large deviance
+
+Interpret signs and values of the coefficients
+```{r}
+exp(coef(fm_pois))
+```
+
+Test for overdispersion: very significant
+```{r}
+dispersiontest(fm_pois)
+```
+
+```{r}
+rootogram(fm_pois)
+```
+
+#### 3.3.3 Quasi-Poisson regression
+One way of dealing with over-dispersion is to use the mean regression function and the variance function from the Poisson GLM but to leave the dispersion parameter unrestricted.
+
+Thus, dispersion is not assumed to be fixed at 1 but is estimated from the data.
+This leads to the same coefficient estimates as the standard Poisson model but inference is adjusted for over-dispersion.
+If estimated dispersion parameter is greater than 1 we conclude that there is overdispersion.
+
+In R, the quasi-Poisson model with estimated dispersion parameter can also be fitted with the glm() function, simply setting  family = quasipoisson.
+
+```{r}
+fm_qpois <- glm(ofp ~ ., data = dat, family = quasipoisson)
+summary(fm_qpois)
+```
+
+* Note everything is the same except (Dispersion parameter for poisson family taken to be 1)
+while (Dispersion parameter for quasipoisson family taken to be 6.706254)
+
+# WHY it's useful? 
+
+
+###3.3.4 Negative binomial regression
+Obtain negative binomial fit.
+
+```{r}
+fm_nbin <- glm.nb(ofp ~ ., data = dat)
+summary(fm_nbin)
+```
+
+Regression coefficients and standard errors of fm_nbin and fm_qpois are similar.
+We expect similar predictions and conclusions from both of them.
+
+Negative binomial model is more theoretically solid and is based on formal likelihood function without any adjustments.
+From Negative binomial model we can calculate directly probability of number of zeros.
+
+```{r}
+countreg::rootogram(fm_nbin)
+```
+
+Negative binomial rootogram looks better than Poisson. But we can see 0 is underfitted whileas closeby values are overfitted
+
+Calculate probability of zero count by negative binomial regression and compare it with the observed frequency.
+
+```{r}
+mu = predict(fm_nbin,type="response")
+probabil_0.nb<-dnbinom(coun,fm_nbin$theta, mu = mu)
+head(probabil_0.nb)
+```
+
+Plot predicted probabilities of zero count and observed proportion of zeros.
+```{r}
+obs0<-sum(dat$ofp==0)/length(dat$ofp)
+plot(probabil_0.nb,ylab="Probability of Zero")
+abline(h=obs0,col="red",lwd=2)
+```
+
+####3.3.5 Hurdle and zero-inflated models
+
+Two variaties of providing more 0s in the model
+
+
+This is going to treat 0 separately. Two sets of parameters
+The rest of the model dist = nbinomial or poission for positive counts, but 0 is not part of this. And model producing only positive counts, so called zero-truncated model.
+
+```{r}
+fm_hurdle0 <- hurdle(ofp ~ ., data = dat, dist = "negbin")
+summary(fm_hurdle0)
+
+```
+
+
+```{r}
+fm_hurdle <- hurdle(ofp ~ . | hosp + numchron + privins + school + gender,
+                    data = dat, dist = "negbin")
+summary(fm_hurdle) # This is because the first part of the parameters are all significant.  None zero is the first set, zero is the second set
+``` 
+Before | fitting everything to all the positive counts
+After | it means for special 0 counts
+
+
+3.3.5.2 Zero-inflated model
+Zero-inflated model is a mix of a zero-producing model and regular Poisson or negative binomial model.
+**Different from Hurdle in that both model are allowed to produce zeros**
+The zero-making part is logistic.
+(1−pi)e^(−λi), this part is the count = 0 given that this is poisson
+pi the 0 is from binomial
+
+```{r}
+fm_zinb0 <- zeroinfl(ofp ~ ., data = dat, dist = "negbin")
+summary(fm_zinb0)
+
+```
+
+```{r}
+fm_zinb <- zeroinfl(ofp ~ . | numchron + privins + school + gender,
+                    data = dat, dist = "negbin")
+summary(fm_zinb)
+```
+
+These are all NB because NB is much better than Poisson from our previous trial outs
+
+```{r}
+predZINB<-predict(fm_zinb,type="prob")
+head(predZINB[,1:6])
+```
+
+Rows are different observation. These probability are from both models. 
+
+```{r}
+predZero<-predict(fm_zinb,type="zero")
+```
+
+If we want to know the probability of other counts, we should get the same results from complete model as well as only NB model
+
+
+Calculate predicted probabilities of count zero by the zero-inflated model.
+Probabilities of different counts are returned by predict() with type “prob”.
+
+# Overdispersion is produced by change of intensity, variance of lambda IS the overdispersion term. 
+V[] = mu + mu^2/theta
+# Useful in predicting very low demand inventory
+
+# Cox process is stochastic intensity poiss
+
+
+
+
+
+

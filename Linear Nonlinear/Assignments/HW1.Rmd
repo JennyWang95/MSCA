@@ -1,0 +1,144 @@
+---
+title: "HW1"
+author: "Elyse Zhang"
+date: "6/21/2018"
+output: html_document
+---
+
+##1 Assignment description and preparation for test
+In preparation for the test below calculate different outputs of glm() using lm().
+
+###1.1 Reading data
+Use the data from file Week1_Homework_Project_Data.csv to estimate linear model with lm().
+Analize summary() of the estimated linear model.
+
+```{r}
+dp = "/Users/Elyse/Documents/UChicago/Courses/Summer 2018/Linear Nonlinear/Course Material/Lecture 1/"
+test_dat <- read.table(paste(dp,'Week1_Test_Sample.csv',sep = '/'), header=TRUE)
+head(test_dat,10)
+
+```
+
+```{r}
+lm.fit = lm(Output ~., data = test_dat)
+summary(lm.fit)
+```
+
+**What can you tell about the data and the fit?**
+**input 2 is not that important, and input 1 with output is a good fit**
+
+###1.2 Reproducing outputs of glm() using lm()
+By using any outputs of lm() or summary(lm.fit) calculate the following outputs of glm().
+
+**You can use glm() to check your answers, but, please, do not use glm object or any functions applied to glm object to calculate your results.**
+
+Calculate variables:
+
+1. coefficients (5%)
+2. residuals (5%)
+3. fitted.values (5%)
+4. linear.predictors (10%)
+5. deviance (25%)
+   (1). Use deviance() (10%)
+   (2). Calculate deviance manually based on the definition given in the lecture (15%)
+6. Akaike Information Criterion aic (25%)
+   (1). Obtain it by using AIC() (10%)
+   (2). Calculate it manually using the definition given in the lecture. (15%)
+7. y (5%)
+8. null.deviance (10%)
+9. dispersion (10%)
+
+
+```{r}
+names(lm.fit)
+names(summary(lm.fit))
+```
+
+```{r}
+glm.fit = glm(Output~.,family=gaussian(link="identity"),data=test_dat)
+summary(glm.fit)
+
+names(glm.fit)
+names(summary(glm.fit))
+```
+
+#### 1. Coefficients
+```{r}
+cbind(coef.lm = lm.fit$coefficients,coef.glm =glm.fit$coefficients)
+coefficients = lm.fit$coefficients
+```
+
+2. Residuals.
+```{r}
+cbind(lm.residuals = lm.fit$residuals,lm.residuals = glm.fit$residuals)[1:10,]
+residuals = lm.fit$residuals
+```
+
+3. fitted values
+```{r}
+fitted.values = lm.fit$fitted.values
+```
+
+4. Linear Predictors
+```{r}
+linear.predictors = lm.fit$fitted.values
+```
+
+5. Deviance
+```{r}
+(deviance = sum(lm.fit$residuals^2))
+```
+
+6.AIC
+```{r}
+Manual.Log.Likelihood<- function(lm.fit) {
+  n = length(lm.fit$fitted.values)
+  sigma = summary(lm.fit)$sigma
+  return(-n*log(2*pi*sigma^2)/2-sum((lm.fit$residuals)^2)/(2*(sigma^2)))
+}
+
+(Log.Likelihood = Manual.Log.Likelihood(lm.fit))
+(AIC.Manual = -2 * Log.Likelihood +2*(lm.fit$rank+1))
+
+aic = AIC.Manual
+```
+
+7.y
+```{r}
+(sum(abs(test_dat[,1]-glm.fit$y)))
+y = test_dat[,1]
+```
+
+8.null.deviance
+```{r}
+lm.null.fit = lm(Output ~ 1 ,data=test_dat)
+(null.deviance = sum(lm.null.fit$residuals^2))
+(glm.fit$null.deviance)
+abs(null.deviance- glm.fit$null.deviance)
+```
+
+
+9.dispersion
+```{r}
+dispersion=summary(lm.fit)$sigma^2
+```
+
+
+```{r}
+res<- list(Linear.Model.Data.lm = lm.fit,
+              coefficients = coefficients,
+              residuals = residuals,
+              fitted.values = fitted.values,
+              linear.predictors = linear.predictors,
+              deviance = deviance,
+              aic = aic,
+              y = y,
+              null.deviance = null.deviance,
+              dispersion = dispersion
+              )
+```
+
+```{r}
+saveRDS(res, file = paste(dp,'result.rds',sep = '/'))
+```
+

@@ -1,0 +1,187 @@
+---
+title: "Week 2 Assignment EZ"
+author: "Elyse Zhang"
+date: "6/29/2018"
+output: html_document
+---
+## 1 Code Your Own Optimizer in R
+Use the formulas for the steps of Newton-Raphson method from the lecture notes to code a simple version of optimizer.
+
+The goal of your optimizer is to find a root (crossing of X-axis) of a given function.
+When applied to maximum likelihood estimation this function is going to be derivative of log likelihood function with respect to the estimated parameter: in order to find maximum of a function find root of its derivative.
+
+### 1.1 Writing your optimizer
+Optimizer is a function that takes initial guess and an arbitrary objective function name and returns a point on X-axis where the objective functions equals zero.
+
+Let the declaration of the optimizer function be my.Optimizer<-function(Start.Value,Function.To.Optimize,Epsilon,projectID)
+where:
+* Start.Value is the initial guess for the optimizer,
+* Function.To.Optimize is the name of your test function that needs to be optimized,
+* Epsilon is the stopping criterion, a small number: 0.0001,
+* projectID is the reserved argument for individual test function in the test below. Parameter projectID will be passed to the test function.
+
+The function my.Optimizer should repeat iterations of the Newton-Raphson algorithm while |xi+1−xi|>=ϵ, where xi+1 is the approximation obtained during the recent iteration and xi is the approximation obtained during the previous iteration.
+
+You can use any of the loops in R language, for example, while(cond) expr where cond is the condition of moving to the next iteration (|xi+1−xi|>=ϵ) and expr is the sequence of the commands that need to be performed at each iteration.
+
+```{r}
+my.Optimizer<-function(Start.Value, Function.To.Optimize, Epsilon = .0001, projectID) {
+  
+  f_deri <- function(f, x, h=1e-5) {
+    return((f(x + h) - f(x - h)) / (2 * h))
+  }
+  
+  x_old = Start.Value
+  f = Function.To.Optimize
+  
+  while (TRUE) {
+  x_new <- x_old - f(x_old)/f_deri(f, x_old) #1 compute x
+  if (abs(x_old-x_new) < Epsilon) { #2 exit
+    break
+  }
+  #3 update
+  x_old = x_new
+  }
+  return(x_new)
+  
+}
+```
+
+
+
+### 1.2 Checking optimizer
+To check your optimizer create a test function that needs to be optimized.
+
+In this project we use one-dimensional optimization, i.e. optimization with respect to only one variable.
+
+Add one more argument to the function, called projectID. The meaning of it will become clear in section Test.
+
+Let the declaration of the function be my.Function<-function(my.X, projectID), where my.X is a scalar parameter with respect to which the optimization is done. Argument projectID is not going to be used until next section.
+
+The function should cross x-axis at least in one point.
+
+For example, you can use
+
+```{r}
+my.Function<-function(my.X,projectID) {
+  my.X^2*3-my.X*5-6
+}
+```
+
+Plot this function.
+```{r}
+X<-seq(from=-5,to=5,by=.1)
+Y<-my.Function(X)
+plot(X,Y,type="l")
+abline(h=0)
+
+```
+
+**Note that for test you will be given different function to optimize.** That function will use your personal project identificator projectID as an argument.
+Be prepared to use an unfamiliar function with your optimizer.
+
+### 1.3 Running your optimizer
+Use your optimizer with the test function and initial approximation.
+
+For example, my.Optimizer(-3,my.Function,Epsilon=.0001).
+Make sure you calculate the answer manually to verify the answer.
+
+You can also test the optimizer by running uniroot().
+
+For example,
+```{r}
+my.Optimizer(-3,my.Function,Epsilon=.0001)
+```
+
+
+```{r}
+uniroot(my.Function,lower=-5,upper= 1)
+```
+
+Try using your optimizer with different start values.
+
+The root returned by your optimizer should be almost the same as the output $root of the object returned by uniroot().
+
+Try also to run optim(). Explain the difference between the results of two functions: uniroot() and optim().
+**How can we reconsile these results?**
+
+**optim is using maximum likelihood**
+
+```{r}
+optim(-3, Negative.LL.Normal, my.Function, method = 'L-BFGS-B', lower=-1,upper= 1)
+```
+
+## 2 Test
+
+```{r}
+dataPath = '/Users/Elyse/Documents/UChicago/Courses/Summer 2018/Linear Nonlinear/Course Material/Lecture 2'
+testFunction<-readRDS(file=paste(dataPath,"MScA_Nonlinear_Models_Week2_TestFunction.rds",sep="/"))$Week2_Test_Function
+```
+
+```{r}
+projectID = 617
+testFunction(0,projectID)
+```
+
+
+```{r}
+my.Optimizer<-function(Start.Value,
+                       testFunction ,
+                       Epsilon = 0.0001,
+                       projectID = 617) {
+  
+  f_deri <- function(f, x, h=1e-5) {
+    return((f(x + h) - f(x - h)) / (2 * h))
+  }
+  
+  x_old = Start.Value
+  f <- function(x) {
+    testFunction(x, projectID)
+  }
+  
+  while (TRUE) {
+  x_new <- x_old - f(x_old)/f_deri(f, x_old) #1 compute x
+  if (abs(x_old-x_new) < Epsilon) { #2 exit
+    break
+  }
+  #3 update
+  x_old = x_new
+  }
+  return(x_new)
+  }
+```
+
+```{r}
+Start.Value =0
+#testFunction = testFunction(X,projectID = 617)
+(my.root = my.Optimizer(Start.Value,
+                       testFunction, 
+                       Epsilon = 0.0001,
+                       projectID = 617))
+```
+
+```{r}
+f <- function(x) {
+    testFunction(x, projectID=617)
+}
+uniroot.lower = 0
+uniroot.upper = 1
+
+uniroot = uniroot(f,lower = uniroot.lower, upper = uniroot.upper)
+
+```
+
+
+```{r}
+res <- list(Start.Value = Start.Value,
+            my.Optimizer.root =my.root,
+            uniroot.root = uniroot$root,
+            uniroot.lower = uniroot.lower,
+            uniroot.upper = uniroot.upper)
+```
+
+```{r}
+write.table(res, file = paste(dataPath,'result.csv',sep = '/'), row.names = F)
+```
+
+

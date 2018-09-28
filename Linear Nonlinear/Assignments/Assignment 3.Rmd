@@ -1,0 +1,525 @@
+---
+title: "LNL Assignment 3"
+author: "Elyse Zhang"
+date: "7/12/2018"
+output: html_document
+---
+
+## 1 Description of the data
+Data in the file Week3_Homework_Project_Data.csv contain observations of time during one day when people watch TV (are logged in to an internet site, active online, etc.) and their age.
+
+Read the data and explore them.
+
+```{r}
+dataPath = '/Users/Elyse/Documents/UChicago/Courses/Summer 2018/Linear Nonlinear/Course Material/Lecture 3'
+Age.Time.Sample<-read.csv(file=paste(dataPath,"Week3_Homework_Project_Data.csv",sep="/"),header=TRUE,sep=",")
+
+```
+
+
+```{r}
+Age.Time.Sample<-as.matrix(Age.Time.Sample)
+Age.Time.Sample[1:10,]
+plot(Age.Time.Sample)
+
+```
+
+empirical copula 
+## WHY ADD 1
+```{r}
+plot(rank(Age.Time.Sample[,1])/length(Age.Time.Sample[,1]+1),
+     rank(Age.Time.Sample[,2])/length(Age.Time.Sample[,1]+1),xlab="Age",ylab="Time")
+```
+
+
+```{r}
+plot(rank(Age.Time.Sample[,1])/length(Age.Time.Sample[,1]),
+     rank(Age.Time.Sample[,2])/length(Age.Time.Sample[,1]),xlab="Age",ylab="Time")
+```
+
+Is there a correlation between the two variables?
+
+```{r}
+c(Correlation=cor(Age.Time.Sample)[1,2],Determination=cor(Age.Time.Sample)[1,2]^2)
+```
+
+Look at the distributions of both variables.
+```{r}
+hist(Age.Time.Sample[,1])
+hist(Age.Time.Sample[,2])
+```
+
+Interpret the initial observations:
+
+1. What do you see on the scatterplot of Age vs. Time?
+**Seems to have a positive correlation**
+
+2. What does the empirical copula suggest?
+**None to maybe a little Frank distribution. **
+
+3. How significant is the amount of correlation?
+**Median**
+
+4. What do you imply from the shapes of the histograms?
+**Mostly Gaussian marginal distribution**
+
+## 2 Clustering of the data.
+Find possible clusters in both variables.
+
+Use Mclust() from mclust to find clusters in the age component and time component.
+Define the Mclust object Age.Clusters and explore the components of it:
+
+```{r}
+library(mclust)
+```
+
+```{r}
+Age.Clusters = Mclust(Age.Time.Sample[,1])
+```
+
+```{r}
+names(Age.Clusters)
+```
+
+```{r}
+Age.Clusters$G
+#An integer vector specifying the numbers of mixture components (clusters) for which the BIC is to be calculated. The default is G=1:9.
+```
+
+```{r}
+Age.Clusters$param
+
+
+# parameters	
+# A list with the following components:
+# pro
+# A vector whose kth component is the mixing proportion for the kth component of the mixture model. If missing, equal proportions are assumed.
+# mean
+# The mean for each component. If there is more than one component, this is a matrix whose kth column is the mean of the kth component of the mixture model.
+# variance
+# A list of variance parameters for the model. The components of this list depend on the model specification. See the help file for mclustVariance for details.
+```
+
+```{r}
+Age.Clusters.Parameters<-rbind(mu=Age.Clusters$param$mean,sigma=sqrt(Age.Clusters$param$variance$sigmasq),pro=Age.Clusters$param$pro)
+```
+
+Use norMix() from nor1mix to analyze the mixed Gaussian models classified by Mclust().
+Read the help file and learn how to use the function Define the object Classified.Mix.Model.Age using norMix() and plot the densities of the normal mix.
+
+```{r}
+library(nor1mix)
+```
+
+```{r}
+Classified.Mix.Model.Age= norMix(Age.Clusters.Parameters[1,], sigma = Age.Clusters.Parameters[2,],
+       w = Age.Clusters.Parameters[3,], name = NULL, long.name = FALSE)
+```
+
+
+```{r}
+plot(Classified.Mix.Model.Age,xout=seq(from=10,to=60,by=.25),p.norm=TRUE,p.comp=TRUE)
+
+```
+
+Define the Mclust object Time.Clusters and explore the components of it:
+
+```{r}
+Time.Clusters= Mclust(Age.Time.Sample[,2])
+```
+
+```{r}
+Time.Clusters$G
+
+Time.Clusters$param
+```
+
+You may need to force the number of mix components to be 2. Also force the variances of the mix to be different.
+
+## Force G=2 (Variance is smaller)
+```{r}
+Time.Clusters<-Mclust(Age.Time.Sample[,2], G=2,modelNames=c("V"))
+```
+
+```{r}
+
+Time.Clusters$param
+```
+
+```{r}
+Time.Clusters.Parameters<-rbind(mu=Time.Clusters$param$mean,sigma=sqrt(Time.Clusters$param$variance$sigmasq),pro=Time.Clusters$param$pro)
+```
+
+Again, define the object Classified.Mix.Model.Time using norMix for analyzing the time component.
+
+(Skipped Code)
+
+Plot the densities of the mix.
+
+### 2.1 Separate the samples into clusters and explore their dependencies
+
+```{r}
+#separate samples and explore dependencies
+Age.Mixing.Sequence<-Age.Clusters$classification
+Age.25.Time.21.Mixing.Sequence<-((Age.Clusters$classification==1)&(Time.Clusters$classification==1))
+Age.25.Time.23.Mixing.Sequence<-((Age.Clusters$classification==1)&(Time.Clusters$classification==2))
+Age.45.Time.21.Mixing.Sequence<-((Age.Clusters$classification==2)&(Time.Clusters$classification==1))
+Age.45.Time.23.Mixing.Sequence<-((Age.Clusters$classification==2)&(Time.Clusters$classification==2))
+Grouped.Data.Age.25.Time.21<-
+  Grouped.Data.Age.25.Time.23<-
+  Grouped.Data.Age.45.Time.21<-
+  Grouped.Data.Age.45.Time.23<-
+  cbind(Age=rep(NA,200),Time=rep(NA,200))
+
+Grouped.Data.Age.25.Time.21[Age.25.Time.21.Mixing.Sequence,]<-
+  Age.Time.Sample[Age.25.Time.21.Mixing.Sequence,]
+Grouped.Data.Age.25.Time.23[Age.25.Time.23.Mixing.Sequence,]<-
+  Age.Time.Sample[Age.25.Time.23.Mixing.Sequence,]
+Grouped.Data.Age.45.Time.21[Age.45.Time.21.Mixing.Sequence,]<-
+  Age.Time.Sample[Age.45.Time.21.Mixing.Sequence,]
+Grouped.Data.Age.45.Time.23[Age.45.Time.23.Mixing.Sequence,]<-
+  Age.Time.Sample[Age.45.Time.23.Mixing.Sequence,]
+
+matplot(Age.Time.Sample[,1],cbind(Grouped.Data.Age.25.Time.21[,2],
+                              Grouped.Data.Age.25.Time.23[,2],
+                              Grouped.Data.Age.45.Time.21[,2],
+                              Grouped.Data.Age.45.Time.23[,2]),
+        pch=16,xlab="Age",ylab="Time",
+        col=c('black','red', 'blue', 'green'))
+legend('topleft', c("Age.25.Time.21","Age.25.Time.23","Age.45.Time.21","Age.45.Time.23") , 
+   lty=1,lwd=3, col=c('black','red', 'blue', 'green'), bty='n', cex=.75)
+```
+
+Now we clearly see existence of clusters.
+
+Interpret the results: what dependencies do you see on the chart?
+
+**Larger age, more variance?**
+
+Group the samples by age and by time and explore the dependencies within groups.
+
+## WHY USE spearman
+
+Group by age.
+```{r}
+#Group by age
+Grouped.Data.Age.25<-cbind(Age=rep(NA,200),Time=rep(NA,200))
+Grouped.Data.Age.25[Age.Clusters$classification==1,]<-Age.Time.Sample[Age.Clusters$classification==1,]
+Grouped.Data.Age.45<-cbind(Age=rep(NA,200),Time=rep(NA,200))
+Grouped.Data.Age.45[Age.Clusters$classification==2,]<-Age.Time.Sample[Age.Clusters$classification==2,]
+plot(rank(na.omit(Grouped.Data.Age.25[,1]))/length(na.omit(Grouped.Data.Age.25[,1])),
+     rank(na.omit(Grouped.Data.Age.25[,2]))/length(na.omit(Grouped.Data.Age.25[,2])),
+     xlab="Age 25 Group: Age",ylab="Age 25 Group: Time")
+```
+
+```{r}
+cor(na.omit(Grouped.Data.Age.25),method="spearman")[1,2]
+```
+
+```{r}
+plot(rank(na.omit(Grouped.Data.Age.45[,1]))/length(na.omit(Grouped.Data.Age.45[,1])),
+     rank(na.omit(Grouped.Data.Age.45[,2]))/length(na.omit(Grouped.Data.Age.45[,2])),
+     xlab="Age 45 Group: Age",ylab="Age 45 Group: Time")
+```
+
+```{r}
+cor(na.omit(Grouped.Data.Age.45),method="spearman")[1,2]
+```
+
+Group by time
+```{r}
+#Group by Time
+Grouped.Data.Time.21<-cbind(Age=rep(NA,200),Time=rep(NA,200))
+Grouped.Data.Time.21[Time.Clusters$classification==1,]<-
+  Age.Time.Sample[Time.Clusters$classification==1,]
+Grouped.Data.Time.23<-cbind(Age=rep(NA,200),Time=rep(NA,200))
+Grouped.Data.Time.23[Time.Clusters$classification==2,]<-
+  Age.Time.Sample[Time.Clusters$classification==2,]
+plot(rank(na.omit(Grouped.Data.Time.21[,1]))/length(na.omit(Grouped.Data.Time.21[,1])),
+     rank(na.omit(Grouped.Data.Time.21[,2]))/length(na.omit(Grouped.Data.Time.21[,2])),
+     xlab="Time 21 Group: Age",ylab="Time 21 Group: Time")
+
+```
+
+```{r}
+cor(na.omit(Grouped.Data.Time.21),method="spearman")[1,2]
+## [1] 0.1722736
+```
+
+
+```{r}
+plot(rank(na.omit(Grouped.Data.Time.23[,1]))/length(na.omit(Grouped.Data.Time.23[,1])),
+     rank(na.omit(Grouped.Data.Time.23[,2]))/length(na.omit(Grouped.Data.Time.23[,2])),
+     xlab="Time 23 Group: Age",ylab="Time 23 Group: Time")
+
+cor(na.omit(Grouped.Data.Time.23),method="spearman")[1,2]
+```
+
+What do you conclude from the results grouped by age and by time?
+**Very little correlation,But the 23 yr groups have more conomonotic behavior than** 
+
+Group by age and by time.
+```{r}
+#Group by Age and Time
+#Grouped.Data.Age.25.Time.21
+plot(rank(na.omit(Grouped.Data.Age.25.Time.21[,1]))/length(na.omit(Grouped.Data.Age.25.Time.21[,1])),
+     rank(na.omit(Grouped.Data.Age.25.Time.21[,2]))/length(na.omit(Grouped.Data.Age.25.Time.21[,2])),
+     xlab="Time 21, Age 25 Group: Age",ylab="Time 21, Age 25 Group: Time")
+
+cor(na.omit(Grouped.Data.Age.25.Time.21),method="spearman")[1,2]
+
+```
+
+```{r}
+#Grouped.Data.Age.25.Time.23
+plot(rank(na.omit(Grouped.Data.Age.25.Time.23[,1]))/length(na.omit(Grouped.Data.Age.25.Time.23[,1])),
+     rank(na.omit(Grouped.Data.Age.25.Time.23[,2]))/length(na.omit(Grouped.Data.Age.25.Time.23[,2])),
+     xlab="Age 25,Time 23 Group: Age",ylab="Age 25, Time 23 Group: Time")
+
+
+cor(na.omit(Grouped.Data.Age.25.Time.23),method="spearman")[1,2]
+```
+
+```{r}
+#Grouped.Data.Age.45.Time.21
+plot(rank(na.omit(Grouped.Data.Age.45.Time.21[,1]))/length(na.omit(Grouped.Data.Age.45.Time.21[,1])),
+     rank(na.omit(Grouped.Data.Age.45.Time.21[,2]))/length(na.omit(Grouped.Data.Age.45.Time.21[,2])),
+     xlab="Age 45, Time 21 Group: Age",ylab="Age 45, Time 21 Group: Time")
+
+
+cor(na.omit(Grouped.Data.Age.45.Time.21),method="spearman")[1,2]
+## [1] -0.1257331
+
+```
+
+
+```{r}
+#Grouped.Data.Age.45.Time.23
+plot(rank(na.omit(Grouped.Data.Age.45.Time.23[,1]))/length(na.omit(Grouped.Data.Age.45.Time.23[,1])),
+     rank(na.omit(Grouped.Data.Age.45.Time.23[,2]))/length(na.omit(Grouped.Data.Age.45.Time.23[,2])),
+     xlab="Age 45, Time 23 Group: Age",ylab="Age 45, Time 23 Group: Time")
+
+
+cor(na.omit(Grouped.Data.Age.45.Time.23),method="spearman")[1,2]
+
+```
+
+Interpret the results of dependency analysis by age and time simultaneously
+**Within each group very little correlation, except some in the group Grouped.Data.Age.25.Time.23)**
+
+Use copula to fit Gaussian copula to the groups Age.25.Time.23 and Age.45.Time.21.
+Use normalCopula() to define the copula objects, then use fitCopula() to fit copulas. Use pobs() to create pseudo data that  fitCopula() needs.
+
+Create the object Gaussian.Copula.Age.25.Time.23.fit of Gaussian copula fit to the group of age 25 and time 23 and explore it.
+
+**Very small direct correlation, but larger copula correlation, meaning the data has some non-linear relationship**
+```{r}
+library(copula)
+```
+
+```{r}
+Gaussian.Copula.Fit.Object<-normalCopula(param=0.3176471 ,dim=2)
+
+Gaussian.Copula.Age.25.Time.23.fit = fitCopula(Gaussian.Copula.Fit.Object, 
+          pobs(na.omit(Grouped.Data.Age.25.Time.23),ties.method = "average"), 
+          method = "ml",
+          optim.method = "BFGS", 
+          optim.control = list(maxit=1000))
+```
+
+
+```{r}
+Gaussian.Copula.Age.25.Time.23.fit
+```
+
+```{r}
+pobs(na.omit(Grouped.Data.Age.25.Time.23),ties.method = "average")
+```
+
+Repeat the analysis for the group age 45 and time 21.
+```{r}
+Gaussian.Copula.Fit.Object<-normalCopula(param=-0.08031146 ,dim=2)
+
+Gaussian.Copula.Age.45.Time.21.fit = fitCopula(Gaussian.Copula.Fit.Object, 
+          pobs(na.omit(Grouped.Data.Age.45.Time.21),ties.method = "average"), 
+          method = "ml",
+          optim.method = "BFGS", 
+          optim.control = list(maxit=1000))
+```
+
+```{r}
+Gaussian.Copula.Age.45.Time.21.fit
+```
+
+
+## 3 Test
+```{r}
+dataPath = "/Users/Elyse/Documents/UChicago/Courses/Summer 2018/Linear Nonlinear/Course Material/Lecture 3"
+test_data <- read.table(paste(dataPath,'Week3_Test_Sample.csv',sep = '/'), header=TRUE)
+```
+
+```{r}
+plot(test_data)
+```
+
+```{r}
+hist(test_data[,1])
+hist(test_data[,2])
+```
+
+```{r}
+n=length(test_data$x_sample)
+Empirical.Copula<-apply(test_data,2,rank)/n
+```
+
+```{r}
+plot(Empirical.Copula,main="Empirical Copula",xlab="Exp X",ylab="Exp Y")
+```
+
+```{r}
+cor(test_data,method="spearman")
+cor(test_data,method="spearman")[1,2]  #Spearman
+cor(test_data)[1,2] #Pearson
+```
+
+```{r}
+library(MASS)
+```
+
+```{r}
+par(mfrow=c(1,1))
+k <- kde2d(rank(Empirical.Copula[,1])/n,
+           rank(Empirical.Copula[,2])/n, n=100)
+image(k,col=topo.colors(20))
+```
+
+Either Gaussian or Frank
+
+Identify the type of the parametric copula, one of “Gaussian”,“Clayton” or “Frank”: create vector variable of length 1, copula.type=c("Gaussian","Clayton", "Frank").
+
+Fit parametric copula of the selected type. Create vector of length 1 containing estimated parameter of the copula: parameter.
+
+```{r}
+Gaussian.Copula.Fit.Object<-normalCopula(param=0.78934241 ,dim=2) #param does not mean anything as long as it is within the limit of this type of copula
+
+Gaussian.Copula.fit = fitCopula(Gaussian.Copula.Fit.Object, 
+          pobs(test_data,ties.method = "average"), 
+          method = "ml",
+          optim.method = "BFGS", 
+          optim.control = list(maxit=1000))
+
+Gaussian.Copula.fit
+```
+
+
+```{r}
+
+Frank.Copula.Fit.Object<-frankCopula(param=0.78934241 ,dim=2)
+
+Frank.Copula.fit = fitCopula(Frank.Copula.Fit.Object, 
+          pobs(test_data,ties.method = "average"), 
+          method = "ml",
+          optim.method = "BFGS", 
+          optim.control = list(maxit=1000))
+
+Frank.Copula.fit
+```
+
+**It should be Frank Copula**
+```{r}
+copula.type = "Frank"
+parameter = Frank.Copula.fit@estimate
+```
+
+
+For each value of image V of test_data$x_sample in the copula find 50%-quantile (median) of conditional distribution of image U of variable test_data$y_sample given V=v calculated by the fitted parametric copula (see formulas on slide 31 of lecture notes), i.e. find median of the conditional distribution P(U|V=v).
+
+The resulting variable quantile is a vector P(U|V=vi), where vi are images of test_data$x_sample in the empirical copula.
+
+```{r}
+theta = parameter
+xRanks<-rank(test_data[,1])/(n+1)
+
+mid.alpha = 0.5
+midy<-sapply(xRanks, function(z) 
+ -log(1-mid.alpha*(1-exp(-theta))/(exp(-theta*z)+mid.alpha*(1-exp(-theta*z))))/theta)
+
+low.alpha<-.05
+lowy<-sapply(xRanks,
+                      function(z)                  -log(1-low.alpha*(1-exp(-theta))/(exp(-theta*z)+low.alpha*(1-exp(-theta*z))))/theta)
+
+high.alpha<-.95
+highy<-sapply(xRanks,
+                      function(z) 
+                        -log(1-high.alpha*(1-exp(-theta))/(exp(-theta*z)+high.alpha*(1-exp(-theta*z))))/theta)
+
+```
+
+
+```{r}
+plot(xRanks,rank(test_data[,2])/n,xlab="X_sample",ylab="Y_sample")
+points(xRanks,lowy,col="red",pch=".")
+points(xRanks,highy,col="red",pch=".")
+points(xRanks,midy,col="green",pch="*",lwd=2)
+```
+
+
+
+```{r}
+quantile = midy
+head(quantile)
+```
+
+
+Create list variable res
+
+```{r}
+res <- list(copula.type = copula.type,
+            parameter = parameter, 
+            quantile = quantile) 
+#Save res to a file and upload the file using left sidebar.
+
+saveRDS(res, file = paste(dataPath,'result.rds',sep = '/'))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

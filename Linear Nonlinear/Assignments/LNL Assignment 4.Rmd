@@ -1,0 +1,81 @@
+---
+title: "LNL Assignment 4"
+author: "Elyse Zhang"
+date: "7/19/2018"
+output: html_document
+---
+### 1. Logistic regression problem statement
+  1. Select an area of application, for example, biomedical studies, engineering, marketing, etc.
+  2. For the selected area of application postulate a problem that could be solved using binomial regression. Think of the two versions of the experiment design: with prospective and retrospective sampling. Try to create the problem with two predictors.
+  4. Find or simulate data for the model.
+  5. Analize the use of the three different link functions and compare them to each other.
+  6. Conduct the fit of binomial regression model using glm() with family=binomial.
+  7. Describe the problem, all steps of obtaining solution and conclusions about the results.
+
+### 2. Test
+```{r}
+dataPath<-"~/Documents/UChicago/Courses/Summer 2018/Linear Nonlinear/Course Material/Lecture 4/nonlinear_models_04_data"
+```
+
+
+```{r}
+train_dat <- read.table(paste(dataPath,'Week4_Test_Sample_Train.csv',sep = '/'), header=TRUE)
+test_dat <- read.table(paste(dataPath,'Week4_Test_Sample_Test.csv',sep = '/'), header=TRUE)
+
+str(train_dat)
+```
+
+```{r}
+glm.logit<-glm(Output~Predictor1+Predictor2,family=binomial(link="logit"),train_dat)
+summary(glm.logit)
+```
+
+```{r}
+glm.probit<-glm(Output~Predictor1+Predictor2,family=binomial(link="probit"),train_dat)
+summary(glm.probit)
+```
+
+
+
+
+```{r}
+Predicted.glm.logit = predict.glm(glm.logit, newdata = test_dat, type = 'response')
+Predicted.Output.logit = as.integer(Predicted.glm.logit>=0.5)
+
+#Predicted.glm.logit
+#Predicted.Output.logit
+```
+
+```{r}
+Predicted.glm.probit = predict.glm(glm.probit, newdata = test_dat, type = 'response')
+Predicted.Output.probit = as.integer(Predicted.glm.probit>=0.5)
+```
+
+```{r}
+x= cbind.data.frame(Predicted.Output.logit=Predicted.Output.logit,
+            Predicted.Output.probit=Predicted.Output.probit)
+
+sum(x$Predicted.Output.logit == x$Predicted.Output.probit)
+identical(x$Predicted.Output.logit, x$Predicted.Output.probit)
+```
+
+
+
+```{r}
+res <- list(Predicted.Output.logit=Predicted.Output.logit,
+            Predicted.Output.probit=Predicted.Output.probit)
+```
+
+```{r}
+write.table(res, file = paste(dataPath,'result.csv',sep = '/'), row.names = F)
+
+```
+
+
+
+
+
+
+
+
+

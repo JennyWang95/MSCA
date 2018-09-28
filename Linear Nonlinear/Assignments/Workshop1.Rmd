@@ -1,0 +1,106 @@
+---
+title: "L3 Workshop 1"
+author: "Elyse Zhang"
+date: "7/11/2018"
+output: html_document
+---
+
+```{r }
+datapath = '/Users/Elyse/Downloads'
+exampleData<-read.csv(file=paste(datapath,"MScA_31010_W3CorrelationExample.csv",sep="/"))
+head(exampleData)
+
+```
+
+```{r}
+plot(exampleData$X,exampleData$Y)
+```
+
+```{r}
+hist(exampleData$X)
+```
+
+```{r}
+library(MASS)
+```
+
+
+```{r}
+(fittedDistrX<-fitdistr(exampleData$X,"normal"))
+ks.test(exampleData$X,"pnorm",mean=fittedDistrX$estimate[1],sd=fittedDistrX$estimate[2])
+
+fittedDistrX
+```
+
+
+
+
+
+
+```{r}
+hist(exampleData$Y)
+```
+
+
+
+```{r}
+(fittedDistrY<-fitdistr(exampleData$Y,"exponential"))
+```
+
+```{r}
+ks.test(exampleData$Y,"pexp",rate = fittedDistrY$estimate)
+```
+**small p, rejection**
+
+
+```{r}
+(fittedDistrY<-fitdistr(exampleData$Y,"log-normal"))
+```
+```{r}
+ks.test(exampleData$Y,"plnorm", meanlog = fittedDistrY$estimate[1],sdlog  = fittedDistrY$estimate[2]) 
+```
+
+
+
+```{r}
+(fittedDistrY<-fitdistr(exampleData$Y,"gamma"))
+```
+
+```{r}
+ks.test(exampleData$Y,"pgamma",shape = fittedDistrY$estimate[1], rate = fittedDistrY$estimate[2])
+```
+
+
+6.3
+
+```{r}
+summary(lm(exampleData$Y ~exampleData$X))
+```
+
+```{r}
+plot(lm(exampleData$Y ~exampleData$X)$residuals)
+```
+
+```{r}
+hist(lm(exampleData$Y ~exampleData$X)$residuals)
+```
+
+```{r}
+n=length(exampleData$X)
+```
+
+
+```{r}
+Empirical.Copula<-apply(exampleData,2,rank)/n # n+1 makes it like the function pops, making it strictly within 1
+```
+
+
+```{r}
+plot(Empirical.Copula,main="Empirical Copula",xlab="Exp X",ylab="Exp Y")
+```
+
+
+
+
+
+

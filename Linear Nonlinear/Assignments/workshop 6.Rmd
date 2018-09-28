@@ -1,0 +1,631 @@
+---
+title: "Week 6 Workshop"
+author: "Elyse Zhang"
+date: "8/1/2018"
+output: html_document
+---
+
+```{r}
+library(faraway)
+
+```
+
+```{r}
+data( babyfood)
+Boys.only.table<-as.data.frame(babyfood[1:3,1:2])
+rownames(Boys.only.table)<-as.character(babyfood[1:3,4])
+Boys.only.table
+```
+
+## 1. Simple Method
+Create contingency table with total counts.
+```{r}
+Contingency.Table<-t(Boys.only.table)
+Full.Contingency.Table<-cbind(Contingency.Table,apply(Contingency.Table,1,sum))
+Full.Contingency.Table<-rbind(Full.Contingency.Table,apply(Full.Contingency.Table,2,sum))
+Full.Contingency.Table
+```
+
+Calculate mean values for each cell.
+```{r}
+(Contingency.Table.Means<-t(outer(Full.Contingency.Table[3,1:3],Full.Contingency.Table[1:2,4]))/
+  Full.Contingency.Table[3,4])
+```
+
+Check how the mean values are calculated.
+```{r}
+sum(Full.Contingency.Table[1,1:3])*sum(Full.Contingency.Table[1:2,1])/Full.Contingency.Table[3,4]
+
+```
+
+```{r}
+Chi.Sq.Statistic<-sum((Contingency.Table-Contingency.Table.Means)^2/Contingency.Table.Means)
+Chi.Sq.Statistic
+
+1-pchisq(Chi.Sq.Statistic,2)
+```
+
+The p-value shows that H0 is rejected. Feeding method has effect on proneness to respiratory disease.
+
+For an indicator of which feeding method is more important look at deviations from the mean values:
+```{r}
+Contingency.Table-Contingency.Table.Means
+```
+
+There is on average additional 34 cases of disease for bottle fed boys and 34 cases of disease fewer for breast fed boys. Supplement feeding reduces proneness insignificantly.
+
+
+## 2. Binomial Regression
+Fit null binomial regression model
+```{r}
+(Binomial.Model.Data<-as.data.frame(cbind(Boys.only.table,food=rownames(Boys.only.table))))
+
+Boys.binomial.model.null<-glm(as.matrix(Binomial.Model.Data[,1:2])~1,family=binomial,data=Binomial.Model.Data)
+summary(Boys.binomial.model.null)
+# the matrix given is the first two columns
+# logit link
+```
+
+* The deviance is too large
+* If the null model fits well, the ratio of the first column and second should be similar
+
+What data the model fits when we give it contingency table?
+```{r}
+Boys.binomial.model.null$y
+```
+
+This is probability of having the disease
+```{r}
+t(as.matrix(Binomial.Model.Data[,1])/(apply(as.matrix(Binomial.Model.Data[,1:2]),1,sum)))
+
+```
+This is how R process the matrix to make the logistic regression
+
+```{r}
+residuals(Boys.binomial.model.null)
+##     Bottle      Suppl     Breast 
+##  2.3285699 -0.0312596 -2.4110746
+residuals(Boys.binomial.model.null,type="pearson")
+##      Bottle       Suppl      Breast 
+##  2.41747818 -0.03123003 -2.31068984
+residuals(Boys.binomial.model.null,type="deviance")
+##     Bottle      Suppl     Breast 
+##  2.3285699 -0.0312596 -2.4110746
+```
+
+If residual (ob-pre) is positive, model underestimates
+
+
+Residuals returned by default are deviance residuals.
+
+The model does not show a good fit: the residual deviance is 11.236 on 2 degrees of freedom.
+
+Fit additive model.
+```{r}
+Boys.binomial.model.additive<-glm(as.matrix(Binomial.Model.Data[,1:2])~food,family=binomial,data=Binomial.Model.Data)
+summary(Boys.binomial.model.additive)
+
+```
+
+```{r}
+Boys.binomial.model.additive<-glm(as.matrix(Binomial.Model.Data[-2,1:2])~food,family=binomial,data=Binomial.Model.Data[-2,])
+summary(Boys.binomial.model.additive)
+```
+
+three observations and three coefficients.:We see that both models with 2 and 3 parameters are saturated: residual deviance and degrees of freedom are zeros.
+
+For contingency tables, this is very common, we cannot use satuated models
+
+```{r}
+exp(Boys.binomial.model.additive$coefficients)
+```
+
+Conclusions:
+1. Binomial model with 2 and 3 parameters is saturated 
+2. Nevertheless, the estimated coefficients reproduce conclusion from Lecture 4 that breast feeding reduces the odds of diseas by a factor of 51-52%.
+3. Null hypothesis confirms importance of food type.
+
+
+## 2. Poisson Model
+Create the data for Poisson model
+```{r}
+Counts<-c(77,19,47,381,128,447)
+diseas<-c("yes","yes","yes","no","no","no")
+food<-c("Bottle","Suppl","Breast","Bottle","Suppl","Breast")
+(poi.data<-data.frame(Counts,diseas,food))
+```
+
+
+```{r}
+Poisson.Model<-glm(Counts~diseas+food,family=poisson,data=poi.data)
+summary(Poisson.Model)
+```
+
+The null model which would mean that all types of events come with the same intensity, does not give a good fit.
+
+Now exponent of the coefficients tells how much the intensity changes.
+```{r}
+exp(Poisson.Model$coeff)
+```
+Intercept: healthy bottle
+coeff are log of intensity. So exp of these is the intensity of each cases.
+
+15% * 398 diseased bottle
+1.08 * 398 healthy breast, 
+and 1.08*15%*398 diseased breast
+0.32* 398 healthy supplement
+and 0.32*15%*398 diseased supplement
+
+
+## Data for the example on page 69
+The data shows experiment with semiconductors wafers.
+The question is whether the quality is affected by particles found on wafers.
+```{r}
+y<-c(320,14,80,36)
+particle<-gl(2,1,4,labels=c("no","yes"))
+quality<-gl(2,2,labels=c("good","bad"))
+wafer<-data.frame(y,particle,quality)
+wafer
+```
+
+## Poisson model
+Assume that we observe the manufacturing process for some time and see the numbers in the table.
+```{r}
+ov<-xtabs(y~quality+particle,wafer) 
+ov
+
+mod1<-glm(y~particle+quality,wafer,family=poisson)
+mod1
+
+summary(mod1)
+```
+
+far from being enough despite reducing from null deviance
+ 
+```{r}
+mod1.1<-summary(glm(y~quality,wafer,family=poisson))
+mod1.2<-summary(glm(y~particle,wafer,family=poisson))
+drop1(mod1,test="Chi")
+```
+ 
+neither model 1 or 2.
+
+## Multinomial model
+
+With multinomial, we should not expect any better results than the poisson, because they are similar
+
+Why they are not good, because the null hypothesis is incorrect
+
+## Binomial Model
+```{r}
+(m<-matrix(y,nrow=2))
+##      [,1] [,2]
+## [1,]  320   80
+## [2,]   14   36
+modb<-glm(m~1,family=binomial)
+summary(modb)
+```
+
+```{r}
+deviance(modb)
+```
+
+Null model means that predictor (particles) is not involved. If the model fits well predictor is irrelevant.
+
+What exactly we fit by modb?
+
+Check the fields of the object modb.
+```{r}
+modb$y
+
+
+modb$linear.predictors # why are they the same? because we fit the model (one proportion = the other proportion = intercept)
+##        1        2 
+## 1.057551 1.057551
+modb$coeff # intercept of binomial model is og odds,  The link is log odds, so intercept is the log odds.
+## (Intercept) 
+##    1.057551
+modb$fitted.values # probability of 
+```
+
+```{r}
+exp(modb$coeff)/(1+exp(modb$coeff))
+```
+
+
+## Visualization of tables
+```{r}
+data(haireye)
+haireye
+
+```
+
+
+```{r}
+(ct<-xtabs(y~hair+eye,haireye))
+summary(ct)
+dotchart(ct)
+mosaicplot(ct,color=TRUE,main=NULL,las=1)
+```
+
+
+```{r}
+modc<-glm(y~hair+eye,family=poisson,haireye)
+summary(modc)
+```
+
+The Poisson model fit is very bad.
+One of the reasons could be overdispersion.
+However, it could be just wrong distributional assumption.
+Check if negative binomial distribution can do a better job fitting the data.
+
+```{r}
+library(MASS)
+```
+
+```{r}
+modc.nb<-glm.nb(y~hair+eye,haireye)
+summary(modc.nb)
+```
+
+```{r}
+c(mean(haireye$y),var(haireye$y))
+```
+
+Should be the same magnititute
+
+```{r}
+exp(modc.nb$coeff)
+```
+
+* black hair and green eyes are the exp(intercept)
+* only redhair green eye is lower
+
+```{r}
+outer(exp(modc.nb$coeff[2:4]),exp(modc.nb$coeff[5:7]))
+```
+
+9.79 = 2.976*3.292
+The intensity would be 11.05* 9.79 of ppl out of a unit of population say 1000 ppl 
+
+
+## Matched Pairs
+In the example on page 79 the data eyegrade contain tests of women vision by right and left eye graded in 4 categories.
+```{r}
+data(eyegrade)
+(ct<-xtabs(y~right+left,eyegrade))
+
+summary(ct)
+
+```
+
+p value of chisq is very small, that they are not independent (table should be symmetric)
+
+```{r}
+(symfac<-factor(apply(eyegrade[,2:3],1,function(x) paste(sort(x),collapse="-"))))
+```
+
+
+```{r}
+matrix(symfac,4,4)
+
+mods<-glm(y~symfac,eyegrade,family=poisson)
+summary(mods)
+```
+
+```{r}
+mods.nb<-glm.nb(y~symfac,eyegrade)
+summary(mods.nb)
+```
+
+```{r}
+c(deviance(mods),df.residual(mods))
+pchisq(deviance(mods),df.residual(mods),lower=F)
+
+round(xtabs(residuals(mods)~right+left,eyegrade),3)
+```
+
+There is some asymmetry 
+
+```{r}
+margin.table(ct,1)
+margin.table(ct,2)
+```
+
+
+The margins show that there are more cases of good right eye vision than good left eye vision. For left eye vision it is the opposite.
+Assumption of symmetry implies marginal homogeneity (but not reverse).
+
+Create a model in which pij=αiβjγij.
+**It allows some level of symmetry with not identical marginals (quasi-symmetry model).** 
+**Also because it's log it would become an addition **
+
+Fit it using
+```{r}
+modq<-glm(y~right+left+symfac,eyegrade,family=poisson)
+summary(modq)
+```
+
+7.2708  on  3  degrees of freedom, not a perfect one
+However, the number of parameters are number of observations, NAs created the 3 df. It's a satuated model
+
+
+```{r}
+pchisq(deviance(modq),df.residual(modq),lower=F)
+
+```
+
+We can not reject the null now. 
+Such model fits.
+Quasi-symmetry together with marginal homogeneity implies symmetry.
+Check if the estimated marginals are close.
+
+```{r}
+anova(mods,modq,test="Chi")
+
+```
+
+* they are different, so adding the two predictors does help
+
+Note that majority has symmetric vision (diagonal terms). Test the symmetry with diagonal terms excluded.
+```{r}
+modqi<-glm(y~right+left,eyegrade,family=poisson,subset=-c(1,6,11,16)) 
+
+summary(modqi)
+pchisq(deviance(modqi),df.residual(modqi),lower=F)
+```
+it does not fit, there is no symmetry (if there is symmetry, same intensity for all buckets).  
+
+## Three-way Contingency Tables
+Example on page 81.
+```{r}
+data(femsmoke)
+femsmoke
+```
+
+Combine the data over age group.
+
+```{r}
+(ct<-xtabs(y~smoker+dead,femsmoke))
+prop.table(ct,margin=1)
+summary(ct)
+```
+
+```{r}
+prop.table(xtabs(y~smoker+age,femsmoke),2)
+```
+
+Smokers are more concentrated in younger age groups and younger people are more likely to live for another 20 years. But it reverses in the overall sample: Sympson-Yule paradox.
+
+## Mutual Independence
+
+```{r}
+(ct3<-xtabs(y~smoker+dead+age,femsmoke))
+```
+
+contingency table for age groups
+
+
+
+
+```{r}
+modi<-glm(y~smoker+dead+age,femsmoke,family=poisson)
+summary(modi)
+
+```
+
+we cannot instantly say that the three parameters are independent
+
+```{r}
+modi.nb<-glm.nb(y~smoker+dead+age,femsmoke)
+## Warning: glm.fit: algorithm did not converge
+summary(modi.nb)
+```
+
+This is better but the predictors are not very significant
+
+```{r}
+rbind(exp(modi$coeff),exp(modi.nb$coeff))
+
+```
+
+## Joint Independence
+We actually need to try all combination. But The experiment is more interested in smoking and death interation. 
+```{r}
+modj<-glm(y~smoker*dead+age,femsmoke,family=poisson)
+summary(modj)
+```
+
+
+```{r}
+modj.nb<-glm.nb(y~smoker*dead+age,femsmoke)
+summary(modj.nb)
+```
+not poisson, nb is not good either
+
+
+## Conditinal Independence
+
+```{r}
+modc.1<-glm(y~smoker*age+dead*age,femsmoke,family=poisson)
+summary(modc.1)
+```
+
+```{r}
+modc.nb<-glm.nb(y~smoker*age+dead*age,femsmoke)
+## Warning in theta.ml(Y, mu, sum(w), w, limit = control$maxit, trace =
+## control$trace > : iteration limit reached
+
+## Warning in theta.ml(Y, mu, sum(w), w, limit = control$maxit, trace =
+## control$trace > : iteration limit reached
+summary(modc.nb)
+```
+
+Note that this time the Poisson model fits well and negative binomial does not provide any improvement.
+
+Other combination
+```{r}
+modc.2<-glm(y~smoker*age+smoker*dead,femsmoke,family=poisson) # k is smoker
+summary(modc.2)
+```
+
+not good
+```{r}
+modc.3<-glm(y~dead*age+smoker*dead,femsmoke,family=poisson)
+summary(modc.3)
+```
+not as good
+
+The best fitting model is modc.1 suggesting that pSmoke∗Dead|Age=pSmoke|AgepDead|Age.
+k is age, i is smoke, j is dead
+Psmoke and dead|age = Psmoke|age * Pdead|age.  Meaning smoke and dead are independent
+
+not so fast
+```{r}
+modsat<-glm(y~smoker*age*dead,femsmoke,family=poisson)
+summary(modsat)
+```
+
+```{r}
+drop1(modsat,test="Chi")
+```
+
+Need to remove the three way interaction
+```{r}
+modu<-glm(y~(smoker+age+dead)^2,femsmoke,family=poisson)
+drop1(modu)
+```
+
+We see that smoker:age and smoker:dead are strongly significant, but smoker:dead is just barely significant.
+smoker:dead should be there or not?? almost can
+
+```{r}
+summary(glm(y~smoker+age+dead+age*dead+smoker*age,femsmoke,family=poisson))
+```
+
+Can we improve the problem statement and data?
+
+
+```{r}
+dataPath = '/Users/Elyse/Documents/UChicago/Courses/Summer 2018/Linear Nonlinear/Course Material/Lecture 6'
+eventTimes<-read.csv(file=paste(dataPath,"EventsRecord.csv",sep="/"))[,1]
+head(eventTimes)
+
+tail(eventTimes)
+```
+
+```{r}
+estimateIntensity<-function(times) {
+  lambda = length(times)/(tail(times, n=1)-times[1])
+  return(lambda)
+}
+  
+```
+
+
+
+```{r}
+suppressMessages(library(zoo))
+
+estimLambda<-rollapply(eventTimes,width=30,FUN=estimateIntensity,partial=T)
+head(estimLambda,20)
+##  [1] 0.1927711 0.2000000 0.2045455 0.2134831 0.2105263 0.2121212 0.2018349
+##  [8] 0.2072072 0.1904762 0.1953125 0.1984733 0.1862069 0.1904762 0.1946309
+## [15] 0.1973684 0.2040816 0.2013423 0.1960784 0.1923077 0.2040816
+plot(eventTimes,estimLambda,col="red")
+```
+
+
+```{r}
+dataPath = '/Users/Elyse/Documents/UChicago/Courses/Summer 2018/Linear Nonlinear/Course Material/Lecture 6'
+test_dat <- read.table(paste(dataPath,'Week6_Test_Sample.csv',sep = '/'), header=TRUE)
+```
+
+Column test_dat$Output - numeric (integer) output Y values;
+Column test_dat$Predictor.Count - numeric (double) predictor for count component of the model;
+Column test_dat$Predictor.Zero - numeric (double) predictor for zero component of the model.
+
+
+```{r}
+library(countreg)
+zeroinfl.nb.fit = zeroinfl(Output~., data = test_dat,dist = "negbin", link = "logit")
+summary(zeroinfl.nb.fit)
+```
+
+This model questions significance of hospital stays and health assessment variables for the zero component.
+
+Fit the model with different sets of predictors for zero-inflated and count components.
+
+```{r}
+zeroinfl.nb.fit <- zeroinfl(Output ~ Predictor.Count | Predictor.Zero ,
+                    data = test_dat,dist = "negbin")
+summary(zeroinfl.nb.fit)
+```
+
+```{r}
+# Calculate predicted probabilities of count zero by the zero-inflated model.
+# Probabilities of different counts are returned by predict() with type “prob”.
+predZINB<-predict(zeroinfl.nb.fit,type="prob")
+head(predZINB, 20)
+
+#Probabilities of count zero are in the first column.
+
+predZINB<-predZINB[,1]
+head(predZINB)
+```
+
+Calculate variable predicted.prob.zero.component equal to probabilities of zero count produced by the zero component of the model.
+```{r}
+predicted.prob.zero.component<-predict(zeroinfl.nb.fit,type="zero")
+head(predZero)
+# Calculate predicted probabilities of count zero by the zero component of the model.
+```
+
+Extract variable theta from zeroinfl.nb.fit.
+```{r}
+theta = zeroinfl.nb.fit$theta
+```
+
+Calculate variable predicted.prob.count.component equal to probabilities of zero count produced by the count component of the model.
+```{r}
+#Predict probability of zero count by the count component of the model.
+predicted.prob.count.component = (predZINB-predicted.prob.zero.component)/(1-predicted.prob.zero.component)
+head(predicted.prob.count.component)
+```
+
+
+Calculate probabilities Probability.Zero of zero count generated by the complete model for each pair of predictors (Predictor.Count,Predictor.Zero).
+Create matrix predicted.prob.total with columns Probability.Zero, Predictor.Count and Predictor.Zero.
+
+```{r}
+Probability.Zero = predZINB
+predicted.prob.total = cbind.data.frame(Probability.Zero = Probability.Zero, Predictor.Count = test_dat$Predictor.Count, Predictor.Zero = test_dat$Predictor.Zero)
+```
+
+
+```{r}
+res <- list(predicted.prob.zero.component=predicted.prob.zero.component,
+            predicted.prob.count.component = predicted.prob.count.component,
+            predicted.prob.total = predicted.prob.total,
+            theta = theta)
+```
+
+```{r}
+saveRDS(res, file = paste(dataPath,'result.rds',sep = '/'))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

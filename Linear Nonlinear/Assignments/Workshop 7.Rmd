@@ -1,0 +1,1488 @@
+---
+title: "Workshop 7"
+author: "Elyse Zhang"
+date: "8/8/2018"
+output: html_document
+---
+
+## Either linear model with transformation or glm with different families
+
+
+```{r}
+suppressWarnings(library(faraway))
+suppressWarnings(library(MASS))
+suppressWarnings(library(lmtest))
+```
+
+## 1 Wafers example
+Example in Chapter 7 shows data from experiment with manufactured semiconductors.
+There are four possible factors affecting the resistivity of a wafer.
+A full factorial experiment design is applied with 4 factors at 2 levels each.
+
+```{r}
+data(wafer)
+summary(wafer)
+```
+
+Check the distribution of resistivity.
+```{r}
+hist(wafer$resist)
+```
+
+```{r}
+(fitGamma<-fitdistr(wafer$resist,"gamma"))
+
+ks.test(wafer$resist,"pgamma",shape=fitGamma$estimate[1],rate=fitGamma$estimate[2])
+
+```
+
+The null hypothesis that the sample is consistent with gamma distribution cannot be rejected.
+
+Check normal and lognormal distributions for the resistivity data.
+
+```{r}
+fit<-fitdistr(wafer$resist,"normal")
+ks.test(wafer$resist,"pnorm",fit$estimate[1],fit$estimate[2])
+
+hist(log(wafer$resist))
+```
+
+Both normal and lognormal distributions can describe the data too. The sample is too small to decide.
+
+Following the book, fit linear model with log transformation and gamma model without transformation.
+
+Fit a lognormal model.
+```{r}
+llmdl <- lm(log(resist) ~ .^2, wafer)
+rlmdl <- step(llmdl, trace = FALSE)
+
+summary(rlmdl)
+```
+
+The best model selected by step() has 3 interactions terms, all with factor 3. Factor 4 does not seem to be significant.
+
+
+Fit a gamma model. Use log link in order to compare the models.
+```{r}
+gmdl <- glm(resist ~ .^2, family=Gamma(link=log), wafer)
+rgmdl <- step(gmdl, trace = FALSE)
+
+summary(rgmdl)
+```
+
+Observe that all coefficients returned by both models are very similar.
+
+Square root of dispersion parameter is the same as sigma returned by lognormal model.
+
+```{r}
+sqrt(summary(rgmdl)$dispersion)
+
+summary(rlmdl)$sigma
+```
+
+trace = TRUE will allow us to see AIC. 
+* AIC of this model might not be comparable to the AIC of other model because the log likelood function might be different, we need to be careful comparing AIC even when model coefficients are close
+
+* coefficients are similar between log normal and gamma(family = log), meaning that the gamma is already very close to normal. 
+
+* Conclusion: both models return practically equivalent results because the estimated gamma distribution is very close to normal.
+
+
+## 2 Insurance claims example
+Another example shows payments of car insurance claims for different regions in Sweden.
+The predicting variables represent:
+
+Mileage driven (`Kilometres’) - categorical variable; for example, level 1 means less than 1,000 kilometers per year
+Bonus for no previous claims; equals number of years since last claim, plus 1
+The make of the car; factor of 8 main car makes, level 9 is for “Other”
+Numbers of insured (policy-years) within each group
+Payment - total value of payments in Skr
+Payment per claim perd
+
+```{r}
+data(motorins)
+head(motorins)
+```
+
+```{r}
+plot(motorins)
+```
+
+```{r}
+plot(motorins$Payment)
+
+```
+
+Check distribution of variable Payment.
+```{r}
+hist(log(motorins$Payment))
+```
+
+```{r}
+fit<-fitdistr(log(motorins$Payment),"normal")
+ks.test(log(motorins$Payment),"pnorm",fit$estimate[1],fit$estimate[2])
+```
+Here Gaussian distribution is not consistent with the data with level5% or higher.
+
+Select only Zone 1.
+Fit gamma regression model.
+The payment variable is expected to be proportional to the number of insured.
+In order to avoid estimation of coefficient that is very close to 1 fix this coefficient at 1 and do not estimate it.
+
+```{r}
+motori <- motorins[motorins$Zone == 1,]
+gl <- glm(Payment ~ offset(log(Insured)) + as.numeric(Kilometres) + Make + Bonus , family=Gamma(link=log), motori)
+summary(gl)
+```
+
+Function offset() is used to avoid estimation of the slope of the corresponding variable. Instead, this slope is set to 1.
+The corresponding lognormal function is:
+```{r}
+llg <- glm(log(Payment) ~ offset(log(Insured))+as.numeric(Kilometres)+Make+Bonus,family=gaussian ,  motori)
+summary(llg)
+
+```
+
+
+There are differences between the models in this example.
+The mileage predictor is very significant in the gamma model and not significant with 5% level in lognormal model.
+Some coefficients are different. For example Make8.
+```{r}
+cbind(gl=exp(gl$coefficients),llg=exp(llg$coefficients))
+
+```
+
+The fit of the two models is not easy to compare.
+AIC would need a complete form of log-likelihood functions of both distributions.
+But constant terms that do not depend on the parameters are usually omitted.
+That is why AIC() does not help here: the difference between them is too big.
+```{r}
+c(AIC(gl),AIC(llg))
+```
+
+However: Null deviances of both models are similar, but the residual deviance is better for gl.
+We consider gl a better fit.
+Use caution when make conclusions like this. Further analysis of residuals and interpretation of the model is needed.
+
+
+To compare shapes of the two fitted distributions plot the probability densities.
+Shape parameters of the distributions are equal to 1/Dispersion for gamma model and sqrt(Dispersion) for the lognormal model.
+
+```{r}
+(shape.llg<-summary(llg)$dispersion)
+(shape.gl<-summary(gl)$dispersion)
+```
+
+both densities are normalized to have unit mean.
+
+```{r}
+x <- seq(0,5,by=0.05)
+plot(x,dgamma(x,1/shape.gl,scale=shape.gl),
+     type="l",ylab="",xlab="",yaxs="i",ylim=c(0,1),lwd=2)
+lines(x,dlnorm(x,meanlog=-0.30551,sdlog=sqrt(shape.llg)), 
+      type="l",ylab="",xlab="",yaxs="i",ylim=c(0,1),col="red",lty=2,lwd=2)
+legend("topright",legend=c("Gamma","Lognormal"),col=c("black","red"),lty=c(1,2),lwd=2)
+```
+
+The number meanlog is selected to make mean value of lognormal distribution equal to 1.
+Since E[X]=exp(μ+σ^2/2), where μ=−0.30551 and σ2= shape.llg, obtain:
+```{r}
+exp(-0.30551+shape.llg/2)
+```
+
+Because dgamma(x,1/shape.gl,scale=shape.gl) means the mean of gamma distribution is 1. mu = shape*scale parameter for gamma distribution,
+
+The shape of the lognormal model is more extreme: it shows more small claim payments and fewer, but larger claims on the tail.
+In other words, it has higher kurtosis.
+
+Make predictions using both models for values of predictors given in x0 below.
+```{r}
+(x0 <- data.frame(Make="1",Kilometres=1,Bonus=1,Insured=100))
+
+```
+
+Calculate predictions:
+
+```{r}
+(pr.gl<-predict(gl,new=x0,se=T,type="response"))
+
+(pr.llg<-predict(llg,new=x0,se=T,type="response"))
+```
+
+The corresponding values for claims in the original scale are:
+```{r}
+c(gl=pr.gl$fit,llg=exp(pr.llg$fit))
+```
+
+
+## 3 Mean-variance analysis by simulation
+Simulate linear model data.
+```{r}
+set.seed(8271)
+b0<-1
+b1<-3
+X<-rnorm(100,300,100)
+summary(X)
+```
+
+```{r}
+Eps1<-rnorm(100,0,120)
+Y<-b0+b1*X+Eps1
+plot(X,Y)
+```
+
+Fit linear model, check homoskedasticity of residuals.
+```{r}
+suppressWarnings(library(lmtest))
+l<-lm(Y~X)
+plot(l$fitted.values,l$residuals)
+```
+
+
+Breusch-Pagan Test
+Ho: γ1 is 0, so that there is no such linear relationship
+H1: heteroskedasticity 
+```{r}
+idx<-(l$fitted.values<median(l$fitted.values))
+bptest(Y~X)
+```
+
+
+Fligner-Killeen Test
+Ho: sub samples have the same variances.
+```{r}
+fligner.test(l$residuals,idx)
+```
+
+Now simulate residuals that have linear dependence on the predictor.
+```{r}
+set.seed(8272)
+Eps2<-rnorm(100,0,X) #X is rnorm
+plot(X,Eps2)
+```
+
+```{r}
+Y<-b0+b1*X+Eps2
+l<-lm(Y~X)
+idx<-(l$fitted.values<median(l$fitted.values))
+plot(l$fitted.values,l$residuals)
+```
+
+```{r}
+bptest(Y~X)
+fligner.test(l$residuals,idx)
+```
+
+The hypothesis of homoskedasticity is rejected by both tests.
+
+Apply square root transformation to the output data.
+```{r}
+Ysq<-sqrt(Y)
+plot(X,Ysq)
+```
+
+```{r}
+lsq<-lm(Ysq~X)
+idx<-(lsq$fitted.values<median(lsq$fitted.values))
+plot(lsq$fitted.values,lsq$residuals)
+```
+
+```{r}
+bptest(Ysq~X)
+## 
+##  studentized Breusch-Pagan test
+## 
+## data:  Ysq ~ X
+## BP = 3.876, df = 1, p-value = 0.04898
+fligner.test(lsq$residuals,idx)
+```
+
+Fligner test does not reject homoskedasticity, BP test will reject the same hypothesis with levels 0.04898 or lower.
+
+Instead of square root transformation we can use Poisson regression: for Poisson distribution E[Y]=V[Y].
+The only problem is that output has to be positive integer.
+
+```{r}
+Y<-round(Y)
+head(Y)
+```
+
+```{r}
+lpo<-glm(Y~X,family=poisson(link=log))
+idx<-(lpo$fitted.values<median(lpo$fitted.values))
+plot(lpo$fitted.values,lpo$residuals)
+```
+
+```{r}
+fligner.test(lpo$residuals,idx)
+```
+
+Unfortunately, Breusch-Pagan test designed specifically for Gaussian linear model.
+We cannot compare it with Fligner-Killeen test.
+Fligner-Killeen barely agrees with homoskedasticity.
+
+
+
+## 4 Sales
+Data sample cpd in package faraway contains projected (xi) and actual (yi) sales of a range of products.
+Consider model yi=βxi, where β represents relative bias in the projected sales.
+
+Plot the data.
+```{r}
+data(cpd)
+head(cpd)
+with(cpd,plot(projected,actual))
+```
+
+Plot empirical copula to see type of dependency.
+Estimate correlation coefficient.
+```{r}
+with(cpd,plot(rank(projected),rank(actual)))
+with(cpd,cor(projected,actual))
+```
+
+We see strong comonotonic dependence, possibly explained by correlation.
+
+Fit linear model without intercept.
+```{r}
+lmod<-lm(actual~projected-1,cpd)
+summary(lmod)
+```
+
+Plot the data with the regression line.
+```{r}
+plot(actual~projected,cpd)
+abline(lmod)
+```
+
+The fit is close to perfect.
+Check the residuals.
+```{r}
+hist(lmod$res)
+```
+
+```{r}
+qqnorm(lmod$res)
+qqline(lmod$res)
+```
+
+```{r}
+plot((lmod$res-mean(lmod$res))/sd(lmod$res),type="b",ylab="Standardized Residuals")
+```
+
+The shape of the distribution is not normal, residuals do not seem to be homoskedastic.
+```{r}
+plot(lmod$fitted, lmod$res, xlab="fitted",type="b",   ylab="residuals")
+```
+
+```{r}
+idx<-(lmod$fitted.values<median(lmod$fitted.values))
+bptest(cpd$actual~cpd$projected)
+fligner.test(lmod$residuals,idx)
+
+```
+
+Residuals cluster. This is a sign of time-dependent variance.
+bptest() could not detect heteroskedasticity, but fligner.test() did with level 0.04188.
+
+Apply logarithmic transformation before fitting linear model in order to stabilize the variance.
+```{r}
+with(cpd,plot(log(projected),log(actual)))
+```
+
+```{r}
+loglmod<-lm(log(actual)~log(projected)-1,cpd)
+summary(loglmod)
+```
+
+```{r}
+plot(actual~projected,cpd)
+abline(loglmod)
+```
+
+```{r}
+plot(residuals(loglmod)~log(fitted(loglmod)),ylab="Deviance residuals",
+     xlab=expression(log(hat(mu))))
+abline(h=0)
+```
+
+```{r}
+idx<-(loglmod$fitted.values<median(loglmod$fitted.values))
+bptest(log(cpd$actual)~log(cpd$projected))
+fligner.test(loglmod$residuals,idx)
+
+```
+
+This may have helped solving the problem. Already passed two tests
+
+Fit inverse Gaussian model.
+```{r}
+igmod<-glm(actual~projected-1,family=inverse.gaussian(link="identity"),data=cpd)
+summary(igmod)
+```
+
+There is no null model because we didn't include intercept or any predictors
+
+```{r}
+plot(actual~projected,cpd,ylim=c(0,7000))
+abline(igmod,lty=1)
+abline(lmod,lty=2)
+legend("bottomright",legend=c("inverse Gaussian","linear"),lty=1:2,col="black")
+```
+
+There is significant difference in slope estimates between lmod and igmod.
+
+Plot deviance residuals against fitted values stretched by log-transformation in order to distribute them more evenly.
+```{r}
+plot(residuals(igmod)~log(fitted(igmod)),ylab="Deviance residuals",
+     xlab=expression(log(hat(mu))))
+abline(h=0)
+```
+
+The graph shows that variance explained by this model still decreases with mean value.
+```{r}
+idx<-(igmod$fitted.values<median(igmod$fitted.values))
+fligner.test(igmod$residuals,idx)
+```
+
+Fit gamma model to the same data and compare the fits.
+Select appropriate link.
+
+```{r}
+gamod <- glm(actual ~ projected-1,family= Gamma(link = identity) ,data = cpd)
+summary(gamod)
+```
+
+Compare the fits and residuals.
+```{r}
+plot(actual~projected,cpd,ylim=c(0,7000))
+abline(igmod,lty=1)
+abline(lmod,lty=2)
+abline(gamod,lty=3)
+legend("bottomright",legend=c("inverse Gaussian","linear","gamma"),lty=1:3,col="black")
+```
+
+Gamma regression returns similar results to inverse Gaussian model.
+
+```{r}
+plot(residuals(gamod)~log(fitted(igmod)),ylab="Deviance residuals",xlab=expression(log(hat(mu))))
+abline(h=0)
+```
+
+```{r}
+idx<-(gamod$fitted.values<median(gamod$fitted.values))
+fligner.test(gamod$residuals,idx)
+```
+
+Fligner test rejects homoskedasticity, but not by much.
+
+Compare all residuals.
+```{r}
+plot((lmod$res-mean(lmod$res))/sd(lmod$res),type="p",ylab="Standardized Residuals",
+     pch=1,col="black")
+points((igmod$res-mean(igmod$res))/sd(igmod$res),pch=16,col="red")
+points((gamod$res-mean(gamod$res))/sd(gamod$res),pch=16,col="blue")
+points((loglmod$res-mean(loglmod$res))/sd(loglmod$res),pch=16,col="green")
+abline(h=0)
+legend("bottomright",legend=c("linear","inverse Gaussian",
+                              "gamma","log-linear"),pch=c(1,16,16,16),
+       col=c("black","red","blue","green"))
+```
+
+Even though residuals of all models are not homoskedastic inverse Gaussian and gamma models seem to explain the data better.
+
+## 5 Poison treatment example
+
+This example looks at effect of treatments after poisoning by certain toxic agents.
+The data for rat poisoning and treatment experiment can be found as data set poisons in boot.
+
+```{r}
+suppressWarnings(library(boot))
+suppressWarnings(attach(poisons))
+```
+```{r}
+poisons
+```
+
+Look at the data with simple box plots and then interaction plots:
+```{r}
+with(poisons,boxplot(time~poison,xlab="Poison type",ylab="Time"))
+```
+
+```{r}
+with(poisons,boxplot(time~treat,xlab="Treatment",ylab="Time"))
+```
+
+Interaction plots
+
+```{r}
+with(poisons,interaction.plot(treat,poison,time))
+```
+
+```{r}
+with(poisons,interaction.plot(poison,treat,time))
+```
+
+```{r}
+with(poisons,interaction.plot(poison,treat,time))
+
+```
+
+Fit a linear model with main and interaction effects, and name the resulting linear model output object as mRats. Then look at the analysis of variance table.
+```{r}
+mRats <- lm(time ~ poison*treat,data=poisons)
+summary(mRats)
+```
+
+```{r}
+anova(mRats)
+```
+
+a sequential analysis of variance table for that fit. That is, the reductions in the residual sum of squares as each term of the formula is added in turn are given in as the rows of a table, plus the residual sum of squares. 1-0.80072/ sum(ssq) = R^2
+
+Examine the distribution of the residuals to see if it looks normally distributed, and then plot the residuals relative to the fitted values to see if the variance tends to be larger where the mean survival time is larger. The normal quantile-quantile plot (qqnorm) should give a straight line if the residuals are normal.
+
+```{r}
+hist(mRats$res)
+```
+
+```{r}
+qqnorm(mRats$res)
+qqline(mRats$res)
+```
+
+```{r}
+plot(mRats$fitted, mRats$res, xlab="fitted",   ylab="residuals")
+```
+
+```{r}
+idx<-(mRats$fitted.values<median(mRats$fitted.values))
+bptest(poisons$time~poisons$poison*poisons$treat)
+
+fligner.test(mRats$residuals,idx)
+```
+
+Both bptest() and Fligner reject the null hypothesis of homoskedasticity. Since the variance indeed does not look constant, try a transformation, taking logarithms of the data.
+```{r}
+mRats.log <- lm(log(time) ~ poison*treat,data=poisons)
+summary(mRats.log)
+```
+
+```{r}
+hist(log(poisons$time))
+qqnorm(mRats.log$res)
+qqline(mRats.log$res)
+plot(mRats.log$fitted, mRats.log$res, xlab="fitted", ylab="residuals",main="log response")
+```
+
+```{r}
+idx<-(mRats.log$fitted.values<median(mRats.log$fitted.values))
+bptest(log(poisons$time)~poisons$poison*poisons$treat)
+fligner.test(mRats.log$residuals,idx)
+
+```
+
+Did not work. Here is one more transformation to try, using the reciprocal of survival time, which could be interpreted as death rate.
+
+```{r}
+mRats.recip <- lm(1/time ~ poison*treat,data=poisons)
+summary(mRats.recip)
+```
+
+```{r}
+hist(1/poisons$time)
+qqnorm(mRats.recip$res)
+qqline(mRats.recip$res)
+```
+
+```{r}
+plot(mRats.recip$fitted, mRats.recip$res, xlab="fitted", ylab="residuals",main="1/response")
+```
+
+Shape of the distribution did not change, but heteroskedasticity is gone.
+
+```{r}
+with(poisons,interaction.plot(treat,poison,1/time))
+with(poisons,interaction.plot(poison,treat,1/time))
+```
+
+```{r}
+idx<-(mRats.recip$fitted.values<median(mRats.recip$fitted.values))
+bptest(1/poisons$time~poisons$poison*poisons$treat)
+## 
+##  studentized Breusch-Pagan test
+## 
+## data:  1/poisons$time ~ poisons$poison * poisons$treat
+## BP = 15.551, df = 11, p-value = 0.1586
+fligner.test(mRats.recip$residuals,idx)
+```
+
+Reciprocal transformation worked. Since interactions did not seem to be significant, here is the model assuming no interaction:
+
+```{r}
+mRats.main <- lm(1/time ~ poison + treat,data=poisons)
+summary(mRats.main)
+```
+
+```{r}
+qqnorm(mRats.main$res)
+qqline(mRats.main$res)
+```
+
+```{r}
+plot(mRats.main$fitted, mRats.main$res, xlab="fitted", ylab="residuals",main="1/response")
+
+```
+
+```{r}
+idx<-(mRats.main$fitted.values<median(mRats.main$fitted.values))
+bptest(1/poisons$time~poisons$poison+poisons$treat)
+## 
+##  studentized Breusch-Pagan test
+## 
+## data:  1/poisons$time ~ poisons$poison + poisons$treat
+## BP = 7.5079, df = 5, p-value = 0.1855
+fligner.test(mRats.main$residuals,idx)
+```
+
+Model with main effects only fits well too.
+
+Fit inverse Gaussian model.
+
+Possible links for inverse.gaussian family are: 1/mu^2, inverse, identity and log.
+
+```{r}
+mRats.ig<-glm(time~poison+treat,family=inverse.gaussian(link="inverse"),data=poisons)
+summary(mRats.ig)
+```
+
+```{r}
+hist(mRats.ig$res)
+plot(mRats.ig$fitted, mRats.ig$res, xlab="fitted", ylab="residuals",main="Inverse Link")
+idx<-(mRats.ig$fitted.values<median(mRats.ig$fitted.values))
+fligner.test(mRats.ig$residuals,idx)
+```
+
+Heteroskesticity is removed without a transformation.(IG is very similar to 1/time)
+
+
+## If interation is significant, general practice is to keep the individual one predictors
+
+## first do lm, look at the residuals; then try transformation, then look at the residuals, then glm and look at the residuals. Sometimes some transformation is enough and some is overdone, RoT is the barely enough one. 
+
+# Workshop 2
+
+## Big Picture
+## Proportional odds ratio ordinal regression, but has restriction and is paralle
+## Multinomial have less restriction, but have to linear
+## SVM not even have to be linear
+
+
+```{r}
+library(nnet)
+```
+
+## 1 Multinomial regression with simulated data
+First, use simulated data to see differences between models.
+
+Load the data from book:
+John K. Kruschke, Doing Bayesian Data Analysis, A Tutorial with R, JAGS, and STAN, 2015, Elsevier
+Data are available on the author’s web site. This example is also used to illustrate multinomial regression in Bayesian framework in the course Bayesian Methods.
+```{r}
+dataPath = '/Users/Elyse/Documents/UChicago/Courses/Summer 2018/Linear Nonlinear/Course Material/Lecture 7'
+```
+
+
+```{r}
+myData = read.csv( file=paste(dataPath,"CondLogistRegData1.csv",sep="/"))
+head(myData)
+```
+
+```{r}
+table(myData$Y)
+myData$Yfa<-as.factor(myData$Y)
+```
+
+Data contain 4 classes and 2 numeric predictor variables.
+New variable Yfa is a factor version of Y.
+
+Plot the data coding different classes with colors:
+
+Class 1 is orange
+Class 2 is magenta
+Class 3 is blue
+Class 4 is black
+
+```{r}
+plot(myData$X1,myData$X2,pch=16,col="orange",main="Data",xlab="X1",ylab="X2")
+points(myData$X1[myData$Y==2],myData$X2[myData$Y==2],col="magenta",pch=16)
+points(myData$X1[myData$Y==3],myData$X2[myData$Y==3],col="blue",pch=16)
+points(myData$X1[myData$Y==4],myData$X2[myData$Y==4],col="black",pch=16)
+```
+
+### 1.1 Proportional odds model
+1.1.1 Logit link
+Let pj(xi)=P(Yi≤j|xi). Then proportional odds regression based on logit link is
+ln(pj(xi)/(1−pj(xi)))=ηj,i=θj−β1xi,1−…−βkxi,k,  j=1,…,J−1,
+
+where J is the number of ordered categories.
+
+Probit and complimentary log log links can also be used.
+
+The model equations show that all slopes are the same, meaning that the lines separating ordered classes are the same, class separating hyperplanes differ only by intercepts.
+
+Proportional odds models are equivalent to nested binomial models:
+
+Class 1 against classes 2, 3, 4;
+Classes 1, 2 against classes 3, 4;
+Classes 1, 2, 3 against class 4.
+
+
+##j is the class, beta does not depend on j, only theta is dependent on j, help reduce the parameters, can be used when there is evidence on that, such as ranks, ordinal data.  In general, it is too restricting, less flexible. 
+
+
+Fit proportional odds model using polr() from MASS
+
+```{r}
+pom<-polr(Yfa~X1+X2,data=myData)
+summary(pom)
+
+pomPred<-predict(pom)
+```
+
+Summary shows only one slope coefficient per predictor, but as many slopes as number of classes, minus 1.
+
+Plot the data and predictions by pom.
+```{r}
+par(mfrow=c(1,2))
+plot(myData$X1,myData$X2,pch=16,col="orange",main="Data",xlab="X1",ylab="X2")
+points(myData$X1[myData$Y==2],myData$X2[myData$Y==2],col="magenta",pch=16)
+points(myData$X1[myData$Y==3],myData$X2[myData$Y==3],col="blue",pch=16)
+points(myData$X1[myData$Y==4],myData$X2[myData$Y==4],col="black",pch=16)
+
+plot(myData$X1,myData$X2,pch=16,col="orange",main="Model",xlab="X1",ylab="X2")
+points(myData$X1[pomPred==2],myData$X2[pomPred==2],col="magenta",pch=16)
+points(myData$X1[pomPred==3],myData$X2[pomPred==3],col="blue",pch=16)
+points(myData$X1[pomPred==4],myData$X2[pomPred==4],col="black",pch=16)
+```
+
+1.1.2 Probit link
+Probit model assumes the same pattern of classes as logit, but uses probit link.
+
+Fit the model using probit as method in polr().
+
+```{r}
+pom.probit<-polr(Yfa~X1+X2,data=myData,method="probit")
+summary(pom.probit)
+
+pomPred.probit<-predict(pom.probit)
+```
+Plot the data and predictions by the model.
+
+```{r}
+par(mfrow=c(1,2))
+plot(myData$X1,myData$X2,pch=16,col="orange",main="Data",xlab="X1",ylab="X2")
+points(myData$X1[myData$Y==2],myData$X2[myData$Y==2],col="magenta",pch=16)
+points(myData$X1[myData$Y==3],myData$X2[myData$Y==3],col="blue",pch=16)
+points(myData$X1[myData$Y==4],myData$X2[myData$Y==4],col="black",pch=16)
+
+plot(myData$X1,myData$X2,pch=16,col="orange",main="Model",xlab="X1",ylab="X2")
+points(myData$X1[pomPred.probit==2],myData$X2[pomPred.probit==2],col="magenta",pch=16)
+points(myData$X1[pomPred.probit==3],myData$X2[pomPred.probit==3],col="blue",pch=16)
+points(myData$X1[pomPred.probit==4],myData$X2[pomPred.probit==4],col="black",pch=16)
+```
+
+1.1.3 Complimentary log-log link
+Complimentary log-log model is based on the same assumption about pattern of classes, but uses complimentary log-log link.
+
+Fit the model using cloglog as method in polr().
+```{r}
+pom.cloglog<-polr(Yfa~X1+X2,data=myData,method="cloglog")
+summary(pom.cloglog)
+pomPred.cloglog<-predict(pom.cloglog)
+```
+
+Plot the data and predictions by the model.
+```{r}
+par(mfrow=c(1,2))
+plot(myData$X1,myData$X2,pch=16,col="orange",main="Data",xlab="X1",ylab="X2")
+points(myData$X1[myData$Y==2],myData$X2[myData$Y==2],col="magenta",pch=16)
+points(myData$X1[myData$Y==3],myData$X2[myData$Y==3],col="blue",pch=16)
+points(myData$X1[myData$Y==4],myData$X2[myData$Y==4],col="black",pch=16)
+
+plot(myData$X1,myData$X2,pch=16,col="orange",main="Model",xlab="X1",ylab="X2")
+points(myData$X1[pomPred.cloglog==2],myData$X2[pomPred.cloglog==2],col="magenta",pch=16)
+points(myData$X1[pomPred.cloglog==3],myData$X2[pomPred.cloglog==3],col="blue",pch=16)
+points(myData$X1[pomPred.cloglog==4],myData$X2[pomPred.cloglog==4],col="black",pch=16)
+
+```
+
+## 1.1's Proportional odds model are not good.Too restictive
+
+1.2 Multinomial logit model
+All three models in the previous sections showed poor fit because the pattern of classes was not consistent with proportional odds assumption: classes did not form layers on the plot.
+
+Multinomial regression does not make assumption about monotonicity of classes locations.
+
+Instead it defines linear boundaries between all pairs of classes.
+
+The following multinomial regression function multinom() from nnet trains multinomial logit model using neural networks.
+
+Fit the model.
+```{r}
+mmod<-multinom(Yfa~X1+X2,data=myData)
+
+(smry<-summary(mmod))
+```
+
+## There is no 1, because we are trying to see the separation between 1 and others
+
+```{r}
+mmodPred<-predict(mmod)
+```
+
+Below is to show how the model separates all classes.
+
+Extract coefficients and make a function calculating hyperplane from coefficients.
+```{r}
+smry$coefficients
+```
+
+```{r}
+makeHyperplane<-function(x1,coeffi){
+  cbind(x1,-(coeffi[1]+x1*coeffi[2])/coeffi[3])
+}
+
+# Find the hyperplanes satisfying
+# X2=β0,1|j+β1,1|jX1−β2,1|j. 
+
+```
+
+Make hyperplanes separating class 1 from classes 2, 3, 4.
+This will use each row of estimated coefficients: 
+ηi,j=β0,1|j+β1,1|j* Xi,1+β2,1|j*Xi,2 = ln(pi,j/pi,1), j=2,3,4.
+
+Find the hyperplanes satisfying
+X2=β0,1|j+β1,1|jX1−β2,1|j. 
+
+For hyperplanes separating class 2 from classes 3 and 4 use differences between rows of coefficients.
+For example, hyperplane separating class 2 from class 3 is based on:
+
+look at the pdf
+
+```{r}
+hpplane12<-makeHyperplane(myData$X1,smry$coefficients[1,])
+hpplane13<-makeHyperplane(myData$X1,smry$coefficients[2,])
+hpplane14<-makeHyperplane(myData$X1,smry$coefficients[3,])
+hpplane23<-makeHyperplane(myData$X1,smry$coefficients[2,]-smry$coefficients[1,])
+hpplane24<-makeHyperplane(myData$X1,smry$coefficients[3,]-smry$coefficients[1,])
+hpplane34<-makeHyperplane(myData$X1,smry$coefficients[3,]-smry$coefficients[2,])
+```
+
+This model has different slopes and intercepts for each boundary.
+
+Plot the data and model predictions.
+```{r}
+par(mfrow=c(1,2))
+plot(myData$X1,myData$X2,pch=16,col="orange",main="Data",xlab="X1",ylab="X2")
+points(myData$X1[myData$Y==2],myData$X2[myData$Y==2],col="magenta",pch=16)
+points(myData$X1[myData$Y==3],myData$X2[myData$Y==3],col="blue",pch=16)
+points(myData$X1[myData$Y==4],myData$X2[myData$Y==4],col="black",pch=16)
+lines(hpplane12,col="grey",lty=2,lwd=1)
+lines(hpplane13,col="grey",lty=2,lwd=1)
+lines(hpplane14,col="grey",lty=2,lwd=1)
+lines(hpplane23,col="grey",lty=2,lwd=1)
+lines(hpplane24,col="grey",lty=2,lwd=1)
+lines(hpplane34,col="grey",lty=2,lwd=1)
+
+# Separate class 1 from classes 2,3,4
+plot(myData$X1,myData$X2,pch=16,col="orange",main="Model, Sep. Class 1",xlab="X1",ylab="X2")
+points(myData$X1[mmodPred==2],myData$X2[mmodPred==2],col="magenta",pch=16)
+points(myData$X1[mmodPred==3],myData$X2[mmodPred==3],col="blue",pch=16)
+points(myData$X1[mmodPred==4],myData$X2[mmodPred==4],col="black",pch=16)
+lines(hpplane12,col="grey",lty=2,lwd=1)
+lines(hpplane13,col="grey",lty=2,lwd=1)
+lines(hpplane14,col="grey",lty=2,lwd=1)
+```
+
+
+```{r}
+# Separate class 2 from classes 3,4
+plot(myData$X1,myData$X2,pch=16,col="orange",main="Model, Sep. Class 2",xlab="X1",ylab="X2")
+points(myData$X1[mmodPred==2],myData$X2[mmodPred==2],col="magenta",pch=16)
+points(myData$X1[mmodPred==3],myData$X2[mmodPred==3],col="blue",pch=16)
+points(myData$X1[mmodPred==4],myData$X2[mmodPred==4],col="black",pch=16)
+lines(hpplane23,col="grey",lty=2,lwd=1)
+lines(hpplane24,col="grey",lty=2,lwd=1)
+
+# Separate class 3 from class 4
+plot(myData$X1,myData$X2,pch=16,col="orange",main="Model, Sep. Class 3",xlab="X1",ylab="X2")
+points(myData$X1[mmodPred==2],myData$X2[mmodPred==2],col="magenta",pch=16)
+points(myData$X1[mmodPred==3],myData$X2[mmodPred==3],col="blue",pch=16)
+points(myData$X1[mmodPred==4],myData$X2[mmodPred==4],col="black",pch=16)
+lines(hpplane34,col="grey",lty=2,lwd=1)
+```
+
+Model unconstrained by proportional odds assumption captures the pattern better.
+
+## intepretation two ways:
+* lines separating way
+* log odds way
+
+
+## 2 Election data example
+###2.1 Multinomial regression
+
+The following example is based on data nes96 from faraway.
+
+```{r}
+head(nes96)
+```
+
+Response is party identification PID with levels
+```{r}
+levels(nes96$PID)
+```
+
+For convenience combine all colors of Democrats in one category “Democrat”. Do the same with Independents and with Republicans.
+
+```{r}
+sPID<-nes96$PID
+levels(sPID)<-c("Democrat","Democrat","Independent","Independent","Independent","Republican","Republican")
+summary(sPID)
+```
+
+Transform categorical buckets of income into numeric variable by taking midpoint of each range.
+```{r}
+table(nes96$income)
+```
+
+```{r}
+inca<-c(1.5,4,6,8,9.5,10.5,11.5,12.5,13.5,14.5,16,18.5,21,23.5,27.5,32.5,37.5,42.5,47.5,55,67.5,82.5,97.5,115)
+nincome<-inca[unclass(nes96$income)]
+summary(nincome)
+head(nincome)
+# median of that income become the income numerical
+```
+
+
+
+Other two variables included in the example are levels of education and age.
+```{r}
+table(nes96$educ)
+table(nes96$age)
+```
+
+Plot party categories in the space of income vs. age.
+```{r}
+idxD<-sPID=="Democrat"
+idxI<-sPID=="Independent"
+idxR<-sPID=="Republican"
+plot(nes96$age,nincome)
+points(nes96$age[idxD],nincome[idxD],col="orange")
+points(nes96$age[idxI],nincome[idxI],col="blue")
+points(nes96$age[idxR],nincome[idxR],col="magenta")
+```
+
+Points do not clearly separate.
+
+Show how proportions of party affiliations change with education for the three party identifications.
+```{r}
+matplot(prop.table(table(nes96$educ,sPID),1),type="l",xlab="Education",
+        ylab="Proportion",lty=c(1,2,3),lwd=2,col=c("black","red","dark green"))
+legend("topright",legend=c("Dem","Ind","Rep"),lty=c(1,2,3),col=c("black","red","dark green"),lwd=2)
+```
+
+Show changes of proportions with income level.
+```{r}
+cutinc<-cut(nincome,7)
+il<-c(8,26,42,58,74,90,107)
+matplot(il,prop.table(table(cutinc,sPID),1),type="l",xlab="Income",
+        ylab="Proportion",lty=c(1,2,3),col=c("black","red","dark green"),lwd=2)
+legend("top",legend=c("Dem","Ind","Rep"),lty=c(1,2,3),col=c("black","red","dark green"),lwd=2)
+```
+
+Show changes of proportions with age.
+```{r}
+cutage<-cut(nes96$age,7)
+al<-c(24,34,44,54,65,75,85)
+matplot(al,prop.table(table(cutage,sPID),1),type="l",xlab="Age",
+        ylab="Proportion",lty=c(1,2,3),col=c("black","red","dark green"),ylim=c(0,.5),lwd=2)
+legend("bottomleft",legend=c("Dem","Ind","Rep"),lty=c(1,2,3),col=c("black","red","dark green"),lwd=2)
+```
+
+Observe that:
+
+- Affiliation with Democrats drops with education and levels at around college degree. At the same time affiliation with Republicans grows with education level and stabilizes around the same college degree level. - Proportion of Independents remains pretty stable with educational level. Proportion of Democrats drops with income and Republicans show the opposite trend. Proportion of - Independents also tends to grow, but slower than proportion of Republicans.
+- Dependence of proportions on age is not strong for all three categories.
+
+In order to assess statistical significance of these trends fit a multinomial logit model.
+```{r}
+mmod<-multinom(sPID~age+educ+nincome,data=nes96)
+```
+
+select variables for the model based on AIC using step().
+```{r}
+mmodi<-step(mmod)
+```
+
+```{r}
+head(mmodi$fitted.values)
+head(predict(mmodi,type="probs"))
+head(predict(mmodi,type="class"))
+```
+
+At the first step education gets removed, at the second step age is removed.
+The final model is sPID~nincome.
+
+Plot probabilities of affiliations predicted by the model.
+```{r}
+(pred<-predict(mmodi,data.frame(nincome=il),type="probs"))
+```
+
+##? il
+
+```{r}
+matplot(il,pred,type="l",xlab="Income",ylab="Predicted Probability",
+        lty=c(1,2,3),col=c("black","red","dark green"),lwd=2)
+legend("top",legend=c("Dem","Ind","Rep"),lty=c(1,2,3),col=c("black","red","dark green"),lwd=2)
+```
+
+Interpret coefficients.
+```{r}
+summary(mmodi)
+```
+
+## No democrat, because that's the base and how independent and republican are compared to
+
+
+To predict probabilities at zero income level use intercepts:
+```{r}
+head(mmodi$fitted.values,1)
+head(predict(mmodi,type="probs"),1)
+```
+
+## multinomial probability should add up to one, test
+
+```{r}
+exp(c(0,t(coef(mmodi))[1,]))/sum(exp(c(0,t(coef(mmodi))[1,])))
+
+
+c(0,t(coef(mmodi))[1,]) #where t(coef(mmodi))[1,] equals row-vector of intercepts
+# 0 means democrat
+exp(c(0,t(coef(mmodi))[1,]))
+
+sum(exp(c(0,t(coef(mmodi))[1,])))
+
+```
+
+Compare with predicted probabilities at income level zero:
+```{r}
+predict(mmodi,data.frame(nincome=0),type="prob")
+```
+
+Slopes show changes in log odds of moving from Democrat to Republican and to Independent, respectively, per increase of income by $1,000.
+slope when income changes from 0 to 1000, how the propotion of demo, ind, and rep change
+
+```{r}
+coef(mmodi)[1,1] #intercept Dem/Ind
+```
+
+ln (p_i/p_d) is the beta zero, the intercept
+
+```{r}
+log(predict(mmodi,data.frame(nincome=0),type="prob")[2]/   # P{Indep}/P{Dem}
+  predict(mmodi,data.frame(nincome=0),type="prob")[1])
+```
+
+Or the the exp
+```{r}
+exp(coef(mmodi)[2,1]) # exp of intercept Dem/Rep
+
+predict(mmodi,data.frame(nincome=0),type="prob")[3]/   # P{Rep}/P{Dem}
+  predict(mmodi,data.frame(nincome=0),type="prob")[1]
+
+
+```
+
+## exp(coef(mmodi)[2,1]) zero income odds ratio Same results from
+predict(mmodi,data.frame(nincome=0),type="prob")[3]/   # P{Rep}/P{Dem}
+  predict(mmodi,data.frame(nincome=0),type="prob")[1]
+
+```{r}
+coef(mmodi)[1,2] # slope Dem/Ind
+
+odds.Ind_Dem.0<-log(predict(mmodi,data.frame(nincome=0),type="prob")[2]/   # P{Indep}/P{Dem}
+  predict(mmodi,data.frame(nincome=0),type="prob")[1])
+odds.Ind_Dem.1<-log(predict(mmodi,data.frame(nincome=1),type="prob")[2]/   # P{Indep}/P{Dem}
+  predict(mmodi,data.frame(nincome=1),type="prob")[1])
+odds.Ind_Dem.1-odds.Ind_Dem.0 # change of log odds Dem/Ind
+```
+
+## the same
+
+Another way to check this interpretation, first, predict probabilities with income difference of $1,000.
+```{r}
+(pred<-predict(mmodi,data.frame(nincome=c(0,1)),type="probs"))
+```
+
+Then use these probabilities to calculate log odds.
+Log odds for multinomial model are defined as:
+
+Here log odds at income zero is by definition ln(p2,1p1,1) and log odds at income $1,000 is ln(p2,2p1,2).
+Then difference between them is
+
+```{r}
+log(pred[1,1]*pred[2,2]/(pred[1,2]*pred[2,1]))
+```
+
+
+```{r}
+log(pred[1,1]*pred[2,3]/(pred[1,3]*pred[2,1]))
+```
+
+2.2 Ordinal multinomial regression
+Even though, categories of the response are not ordinal, fit proportional odds model using polr() from MASS.
+
+```{r}
+pomod<-polr(sPID~age+educ+nincome, data=nes96)
+```
+
+Compare deviance and number of parameters for pomod and mmod.
+```{r}
+rbind(Pomod=c(deviance=deviance(pomod),Parnum=pomod$edf),
+      Mmod=c(deviance=deviance(mmod),Parnum=mmod$edf))
+```
+
+Mmod is indeed better, but try to improve pomod
+Proportional odds model has fewer parameters, but the fit is not as good as multinomial model has.
+Select variables using step().
+
+```{r}
+pomodi<-step(pomod)
+
+```
+
+Model is the same: The result is the same as with multinomial regression: the resulting model is sPID~nincome.
+
+
+## 3 Predicting the Medicare Functional Classification Level (K-level)
+```{r}
+library(MASS)
+library(nnet)
+```
+
+3.1 Data
+Read the experiment data.
+```{r}
+dta<-read.csv(paste(dataPath,"Klevel_Prediction_Data.csv",sep="/"))
+dta$K_level_F<-as.factor(dta$K_level)
+```
+
+Plot the data.
+
+```{r}
+idx2<-dta$K_level==2
+idx3<-dta$K_level==3
+idx4<-dta$K_level==4
+plot(dta$AMP,dta$Age,col="orange",pch=16,xlab="AMP",ylab="Age")
+points(dta$AMP[idx3],dta$Age[idx3],col="blue",pch=16)
+points(dta$AMP[idx4],dta$Age[idx4],col="magenta",pch=16)
+legend("bottomleft",
+       legend=c("K-level 2","K-level 3","K-level 4"),
+       pch=16,col=c("orange","blue","magenta"))
+```
+
+### 3.2 Fitting ordinal logistic regression
+Use function polr() from library MASS to fit ordinal logistic regression model.
+
+```{r}
+orlog<-polr(K_level_F~AMP+Age,data=dta)
+summary(orlog)
+```
+
+The summary shows that increase of normalized AMP score by 1 point changes odds for event “K-level ≤ j” 0.0794492 times while increase of normalized age by 1 unit changes same odds 2.8048226 times.
+
+Plot the data and the predicted K-level scores.
+```{r}
+orlogPred<-predict(orlog)
+predIdx2<-orlogPred==2
+predIdx3<-orlogPred==3
+predIdx4<-orlogPred==4
+
+par(mfrow=c(1,2))
+plot(dta$AMP,dta$Age,col="orange",pch=16,xlab="AMP",ylab="Age",main="Data")
+points(dta$AMP[idx3],dta$Age[idx3],col="blue",pch=16)
+points(dta$AMP[idx4],dta$Age[idx4],col="magenta",pch=16)
+legend("bottomleft",
+       legend=c("K-level 2","K-level 3","K-level 4"),
+       pch=16,col=c("orange","blue","magenta"))
+
+plot(dta$AMP,dta$Age,col="orange",pch=16,xlab="AMP",ylab="Age",main="Predictions")
+points(dta$AMP[predIdx3],dta$Age[predIdx3],col="blue",pch=16)
+points(dta$AMP[predIdx4],dta$Age[predIdx4],col="magenta",pch=16)
+legend("bottomleft",
+       legend=c("K-level 2","K-level 3","K-level 4"),
+       pch=16,col=c("orange","blue","magenta"))
+```
+
+Plot on the left shows observed categories and plot on he right shows typical pattern of ordinal logistic regression with parallel hyperplanes separating the classes.
+
+## 3.3 Fitting multinomial model
+Fit multinomial model.
+```{r}
+mumod<-multinom(K_level_F~AMP+Age,data=dta)
+summary(mumod)
+
+mumodPred<-predict(mumod)
+```
+
+Compare predictions by proportional odds model and multinomial model.
+
+```{r}
+mumodPredIdx2<-mumodPred==2
+mumodPredIdx3<-mumodPred==3
+mumodPredIdx4<-mumodPred==4
+
+par(mfrow=c(1,2))
+plot(dta$AMP,dta$Age,col="orange",pch=16,xlab="AMP",ylab="Age",
+     main="Predictions by Proportional Odds")
+points(dta$AMP[predIdx3],dta$Age[predIdx3],col="blue",pch=16)
+points(dta$AMP[predIdx4],dta$Age[predIdx4],col="magenta",pch=16)
+legend("bottomleft",
+       legend=c("K-level 2","K-level 3","K-level 4"),
+       pch=16,col=c("orange","blue","magenta"))
+
+
+plot(dta$AMP,dta$Age,col="orange",pch=16,xlab="AMP",ylab="Age",main="Predictions by Multinomial")
+points(dta$AMP[mumodPredIdx3],dta$Age[mumodPredIdx3],col="blue",pch=16)
+points(dta$AMP[mumodPredIdx4],dta$Age[mumodPredIdx4],col="magenta",pch=16)
+legend("bottomleft",
+       legend=c("K-level 2","K-level 3","K-level 4"),
+       pch=16,col=c("orange","blue","magenta"))
+```
+
+Comparison shows that multinomial model is slightly more flexible and allows variation in slopes of hyperplanes separating different classes. For example, multinomial model estimates steeper slope between K-level 3 and K-level 4.
+
+
+## 4.Using log loss function for model selection
+For multi-class classification there is a common measure of quality of classification called log loss.
+
+penalty function
+accuracy is not sensitive to the frequency of the events
+
+Y is
+c1: 1 0 0 
+c1: 1 0 0 
+c3: 0 0 1
+c2: 0 1 0 
+
+p is
+p11, p12, p13
+p21, p22, p23
+
+y11*lnp11 +y12*p12 = y 11lnp11
+
+```{r}
+MultiLogLoss <- function(act, pred)
+{
+  eps = 1e-15;
+  if (!is.matrix(pred)) pred<-t(as.matrix(pred))
+  if (!is.matrix(act)) act<-t(as.matrix(act))
+  nr <- nrow(pred)
+#  pred = matrix(sapply( pred, function(x) max(eps,x)), nrow = nr)      
+#  pred = matrix(sapply( pred, function(x) min(1-eps,x)), nrow = nr)
+  #normalize rows
+  ll = sum(act*log(sweep(pred, 1, rowSums(pred), FUN="/")))
+  ll = -ll/nrow(act)
+  return(ll);
+}
+
+response.matrix <- function(Y)
+{
+  y_res <- matrix(NA,nrow = 0,ncol = 3)
+  for (i in 1:length(Y))
+  { 
+    if (Y[i] == 2)
+      y_res <- rbind(y_res,c(1,0,0))
+    if (Y[i] == 3)
+      y_res <- rbind(y_res,c(0,1,0))
+    if (Y[i] == 4)
+      y_res <- rbind(y_res,c(0,0,1))
+  }  
+  return (y_res)
+}
+```
+
+Use log loss function to decide which model fits the sample better.
+
+Calculate the matrix of true responses and predicted probabilities of the K levels 2, 3, 4.
+
+```{r}
+trueY<-response.matrix(dta$K_level_F)
+mumodProb<-predict(mumod, type="probs")
+orlogProb<-predict(orlog, type="probs")
+```
+
+Replace small probabilities, less than ϵ=10−16, with ϵ and large probabilities, greater than 1−ϵ=1−10−16 with 1−ϵ.
+Normalize probabilities in each row after truncating them.
+```{r}
+eps<-10^(-16)  
+nr <- nrow(mumodProb)
+#truncate
+mumodProb<-matrix(sapply(mumodProb, function(x) max(eps,x)), nrow = nr)   
+mumodProb<-matrix(sapply(mumodProb, function(x) min(1-eps,x)), nrow = nr)   
+orlogProb <- matrix(sapply(orlogProb, function(x) max(eps,x)), nrow = nr)
+orlogProb <- matrix(sapply(orlogProb, function(x) min(1-eps,x)), nrow = nr)
+#normalize rows
+mumodProb<-sweep(mumodProb, 1, rowSums(mumodProb), FUN="/")
+orlogProb<-sweep(orlogProb, 1, rowSums(orlogProb), FUN="/")
+
+```
+
+Call log loss function.
+```{r}
+MultiLogLoss(trueY,orlogProb)
+## [1] 0.4844948
+MultiLogLoss(trueY,mumodProb)
+
+```
+
+
+
+
+
+## Assignment
+
+```{r}
+train_dat <- read.table(paste(dataPath,'Week7_Test_Sample_Train.csv',sep = '/'), header=TRUE)
+test_dat <- read.table(paste(dataPath,'Week7_Test_Sample_Test.csv',sep = '/'), header=TRUE)
+```
+
+
+```{r}
+library('MASS')
+library('nnet')
+```
+
+
+```{r}
+train_dat$Yfa<-as.factor(train_dat$Y)
+polr.fit = polr(Yfa~X1+X2,data=train_dat)
+summary(polr.fit)
+```
+
+```{r}
+predicted.prob.polr.train = predict(polr.fit, type = 'probs')
+# class.predicted.prob.polr.train = predict(polr.fit)
+# head(class.predicted.prob.polr.train)
+```
+
+
+```{r}
+multinom.fit = multinom(Yfa~X1+X2,data=train_dat)
+```
+
+```{r}
+predicted.prob.multinom.train = predict(multinom.fit, type = 'probs')
+```
+
+
+```{r}
+table(train_dat$Y)
+```
+
+```{r}
+response.matrix <- function(Y)
+{
+  y_res <- matrix(NA,nrow = 0,ncol = 3)
+  for (i in 1:length(Y))
+  { 
+    if (Y[i] == 1)
+      y_res <- rbind(y_res,c(1,0,0))
+    if (Y[i] == 2)
+      y_res <- rbind(y_res,c(0,1,0))
+    if (Y[i] == 3)
+      y_res <- rbind(y_res,c(0,0,1))
+  }  
+  return (y_res)
+}
+```
+
+```{r}
+trueY<-response.matrix(train_dat$Y)
+```
+
+```{r}
+MultiLogLoss <- function(act, pred)
+{
+  eps = 1e-15; #cut off so that we don't have extrodinary 
+  if (!is.matrix(pred)) pred<-t(as.matrix(pred))
+  if (!is.matrix(act)) act<-t(as.matrix(act))
+  nr <- nrow(pred)
+#  pred = matrix(sapply( pred, function(x) max(eps,x)), nrow = nr)      
+#  pred = matrix(sapply( pred, function(x) min(1-eps,x)), nrow = nr)
+  #normalize rows
+  ll = sum(act*log(sweep(pred, 1, rowSums(pred), FUN="/")))
+  # sweep function
+  # like apply, just apply the function / normalize prediction so that they add up to 1
+  
+  ll = -ll/nrow(act)
+  return(ll);
+}
+```
+
+
+```{r}
+eps<-10^(-16)  
+nr <- nrow(train_dat)
+```
+
+```{r}
+#truncate
+predicted.prob.polr.train <-matrix(sapply(predicted.prob.polr.train , function(x) max(eps,x)), nrow = nr)   
+predicted.prob.polr.train <-matrix(sapply(predicted.prob.polr.train , function(x) min(1-eps,x)), nrow = nr)   
+
+predicted.prob.multinom.train <- matrix(sapply(predicted.prob.multinom.train, function(x) max(eps,x)), nrow = nr)
+predicted.prob.multinom.train <- matrix(sapply(predicted.prob.multinom.train, function(x) min(1-eps,x)), nrow = nr)
+
+#normalize rows
+predicted.prob.polr.train <-sweep(predicted.prob.polr.train, 1, rowSums(predicted.prob.polr.train), FUN="/")
+
+predicted.prob.multinom.train <-sweep(predicted.prob.multinom.train, 1, rowSums(predicted.prob.multinom.train), FUN="/")
+```
+
+
+```{r}
+log.loss.polr.train = MultiLogLoss(trueY,predicted.prob.polr.train)
+```
+
+```{r}
+log.loss.multinom.train = MultiLogLoss(trueY,predicted.prob.multinom.train)
+```
+
+multinom is smaller thus better
+
+```{r}
+predicted.prob = predict(multinom.fit,newdata = test_dat, type = 'probs')
+```
+
+```{r}
+res <- list(predicted.prob=predicted.prob,
+            log.loss.polr.train=log.loss.polr.train,
+            log.loss.multinom.train=log.loss.multinom.train)
+```
+
+```{r}
+saveRDS(res, file = paste(dataPath,'result.rds',sep = '/'))
+```
+
+
+random accuracy, having the disease and testing positive of the disease is independent.
+
+
+
+
+
+
+

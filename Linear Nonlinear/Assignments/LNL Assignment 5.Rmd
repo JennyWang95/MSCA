@@ -1,0 +1,154 @@
+---
+title: "Assignment"
+author: "Elyse Zhang"
+date: "7/27/2018"
+output: html_document
+---
+## 1 Measles immunization example
+### 1.1 Data
+Recent outbreak of measles caused debates about necessity of vaccination.
+
+The data file for this project contains CDC data on immunization coverage for MMR for all U.S. states and the national immunization rate.
+
+The data for outbreaks in each state were simulated using the assumption that after vaccination 90% of vaccinated children become immuned.
+
+Another assumption was made that 100% of not immunized people get infected when exposed to the virus.
+
+CDC data on immunization coverage rates
+
+The data for this project are in the file MeaslesImmunizationCoverageAndOutbreaks.csv
+
+Read the data.
+
+```{r}
+measles.data<-read.csv(file=paste(dataPath,"MeaslesImmunizationCoverageAndOutbreaks.csv",sep="/"))
+#measles.data<-as.data.frame(measles.data)
+head(measles.data)
+```
+
+### 1.2 Fit Poisson Regression
+Fitting Poisson regression to the measles outbreaks data means fitting the model
+ln(λi)=β0+β1xi,
+where xi is the coverage variable and λi are intensities of the observed counts.
+
+If Y people out of hundred got sick then the intensity of measles cases is λ=Y/100.
+Then the model is ln(Y/100)=β0+β1x.
+```{r}
+measles.poisson.model = glm(Outbreaks ~ Coverage, family = poisson, data = measles.data)
+summary(measles.poisson.model)
+```
+
+
+```{r}
+measles.poisson.model$coefficients
+measles.poisson.model$deviance
+measles.poisson.model$df.residual
+measles.poisson.model$aic
+```
+
+```{r}
+rbind(measles.poisson.model$linear.predictors, log(measles.poisson.model$fitted.values), predict(measles.poisson.model))
+```
+
+
+```{r}
+rbind(measles.data$Outbreaks,measles.poisson.model$fitted.values, exp(measles.poisson.model$linear.predictors),predict(measles.poisson.model, type = 'response'))
+```
+
+Interpretation of the model.
+
+What if coverage changes by 1%?
+
+Then the intensity of the Poisson distribution will have relative change
+λ1/λ2=exp(β1Δx),
+where Δx is the change in coverage.
+
+Let Δx=0.01. Then the change of intensity measured in percentage points is
+λnew/λold=exp(β0+β1(x+Δx)−β0−β1x)=exp(β1Δx).
+
+According to the model 1% increase in immunization should reduce the intensity of measles cases by:
+```{r}
+(1-exp(measles.poisson.model$coef[2]*.01))*100
+```
+
+### 1.3 Fit Negative Binomial regression
+Use package MASS to fit negative binomial regression.
+
+```{r}
+library(MASS)
+```
+
+Learn how to fit negative binomial regression using glm.nb() from MASS.
+Fit model Negative.Binomial.Model.glm.nb.
+Look at the summaries of both fits: Negative.Binomial.Model.glm.nb andmeasles.poisson.model and compare them.
+Learn how to interpret the output of theta in Negative.Binomial.Model.glm.nb.
+Describe your comparison of the two models in the report.
+
+```{r}
+Negative.Binomial.Model.glm.nb <- glm.nb(Outbreaks ~ Coverage, data = measles.data)
+summary(Negative.Binomial.Model.glm.nb)
+```
+
+There is no overdispersion
+
+```{r}
+test_dat <- read.table(paste(dataPath,'Week5_Test_Sample.csv',sep = '/'), header=TRUE)
+head(test_dat)
+```
+
+```{r}
+glm.poisson.fit = glm(Output ~ Predictor, family = poisson, data = test_dat)
+summary(glm.poisson.fit)
+```
+
+
+```{r}
+glm.nb.fit = glm.nb(Output ~ Predictor, data = test_dat)
+summary(glm.nb.fit)
+```
+
+```{r}
+theta = glm.nb.fit$theta
+```
+
+```{r}
+dispersiontest(glm.poisson.fit,alternative="two.sided")
+names(dispersiontest(glm.poisson.fit,alternative="two.sided"))
+dispersion.test.p.value = dispersiontest(glm.poisson.fit,alternative="two.sided")$p.value
+```
+
+We do not reject the Null that mean value equals variance, aka that the distribution is a possion
+
+```{r}
+cbind.data.frame(test_dat$Output,predict(glm.poisson.fit, type = 'response'), predict(glm.nb.fit,type ='response'))
+plot(test_dat$Predictor,test_dat$Output, col = 'black')
+points(test_dat$Predictor,predict(glm.poisson.fit, type = 'response'), col = 'red')
+points(test_dat$Predictor,predict(glm.nb.fit,type ='response'), col = 'blue')
+
+predicted.values = predict(glm.poisson.fit, type = 'response')
+```
+
+
+
+```{r}
+res <- list(predicted.values=predicted.values,  
+            dispersion.test.p.value=dispersion.test.p.value,
+            theta = theta)
+saveRDS(res, file = paste(dataPath,'result.rds',sep = '/'))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

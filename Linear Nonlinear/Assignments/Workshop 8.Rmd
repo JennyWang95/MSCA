@@ -1,0 +1,352 @@
+---
+title: "Workshop 1"
+author: "Elyse Zhang"
+date: "8/15/2018"
+output: html_document
+---
+
+```{r}
+suppressWarnings(library(faraway))
+suppressWarnings(library(ggplot2))
+suppressWarnings(library(lme4))
+suppressWarnings(library(knitr))
+
+```
+
+```{r}
+data(pulp)
+pulp
+```
+
+```{r}
+ggplot(pulp, aes(x=operator,y=bright))+
+  geom_point(position =position_jitter(width=0.1, height=0.0))
+
+```
+
+Argument position_jitter in ggplot() is used to avoid overplotting points on the graph.
+
+Plot the data and show grand and group means.
+
+Calculate means.
+
+```{r}
+grand<-mean(pulp$bright)
+gr.a<-mean(subset(pulp,operator=="a")$bright)
+gr.b<-mean(subset(pulp,operator=="b")$bright)
+gr.c<-mean(subset(pulp,operator=="c")$bright)
+gr.d<-mean(subset(pulp,operator=="d")$bright)
+c(grand,gr.a,gr.b,gr.c,gr.d)
+```
+
+
+```{r}
+aggregate(pulp$bright,by=list(pulp$operator),FUN=mean)
+```
+
+Calculate group indices.
+
+```{r}
+(lev<-levels(pulp$operator))
+(idx.1<-pulp$operator==lev[1])
+
+idx.2<-pulp$operator==lev[2]
+idx.3<-pulp$operator==lev[3]
+idx.4<-pulp$operator==lev[4]
+```
+
+```{r}
+#Matrix and column names
+plotData<-matrix(NA,length(pulp$operator),2*length(lev))
+(colnames(plotData)<-c(lev,paste("mean",lev,sep=".")))
+```
+
+```{r}
+#Grouped data
+plotData[idx.1,1]<-pulp$bright[idx.1]
+plotData[idx.2,2]<-pulp$bright[idx.2]
+plotData[idx.3,3]<-pulp$bright[idx.3]
+plotData[idx.4,4]<-pulp$bright[idx.4]
+
+#Group means
+plotData[idx.1,5]<-(idx.1*gr.a)[idx.1]
+plotData[idx.2,6]<-(idx.2*gr.b)[idx.2]
+plotData[idx.3,7]<-(idx.3*gr.c)[idx.3]
+plotData[idx.4,8]<-(idx.4*gr.d)[idx.4]
+
+#Plot
+matplot(1:length(pulp$bright),plotData[,1:4],col=c("magenta","green","blue","orange"),
+        pch=16,ylab="Brightness",xlab="Index")
+lines(1:length(pulp$bright),plotData[,5],col="magenta",lwd=2)
+lines(1:length(pulp$bright),plotData[,6],col="green",lwd=2)
+lines(1:length(pulp$bright),plotData[,7],col="blue",lwd=2)
+lines(1:length(pulp$bright),plotData[,8],col="orange",lwd=2)
+abline(h=grand,col="black",lwd=2)
+```
+
+# Refer to pdf and course slide for understanding
+
+### 2.1.1 Estimate fixed effects by fitting linear model and ANOVA.
+Linear model with categorical predictors assigns fixed factors to group means.
+
+```{r}
+md.fixed<-lm(bright ~ operator,pulp)
+summary(md.fixed)
+```
+
+
+```{r}
+(md.fixed.anova<-anova(md.fixed))
+```
+
+
+```{r}
+SSM = sum( length(pulp$bright[pulp$operator =='a'])*(gr.a -grand)^2,length(pulp$bright[pulp$operator =='b'])*(gr.b-grand)^2, length(pulp$bright[pulp$operator =='c'])*(gr.c-grand)^2, length(pulp$bright[pulp$operator =='d'])*(gr.d-grand)^2)
+
+SSE = sum((pulp$bright[pulp$operator =='a'] -gr.a)^2,(pulp$bright[pulp$operator =='b'] -gr.b)^2, (pulp$bright[pulp$operator =='c'] -gr.c)^2, (pulp$bright[pulp$operator =='d'] -gr.d)^2)
+  
+SST = SSM + SSE
+```
+
+```{r}
+  
+c(SSE = SSE, SSM = SSM, SST = SST)
+```
+
+```{r}
+SSM/3
+## [1] 0.4466667
+SSE/16
+```
+
+ANOVA table shows that operator effect is significant.
+
+What are the effects of the four operators?
+```{r}
+(fixedEffects<-c(gr.a,gr.b,gr.c,gr.d)-grand)
+```
+
+Here fixed effects are centered by grand mean. They can also be centered by mean value of vector c(gr.a,gr.b,gr.c,gr.d). In case when all groups have the same numbers of elements result is the same.
+
+Another way of calculating group means and interpretation of coefficients:
+```{r}
+(groupMeans<-c(md.fixed$coefficients[1],md.fixed$coefficients[1]+md.fixed$coefficients[-1]))
+```
+
+
+What does the linear model predict?
+```{r}
+(md.fixed.predict<-predict(md.fixed))
+```
+
+or
+```{r}
+(unique(md.fixed.predict))
+```
+
+This are exactly group mean values.
+```{r}
+matplot(1:length(pulp$bright),plotData[,1:4],col=c("magenta","green","blue","orange"),
+        pch=16,ylab="Brightness",xlab="Index")
+lines(1:length(pulp$bright),plotData[,5],col="magenta",lwd=2)
+lines(1:length(pulp$bright),plotData[,6],col="green",lwd=2)
+lines(1:length(pulp$bright),plotData[,7],col="blue",lwd=2)
+lines(1:length(pulp$bright),plotData[,8],col="orange",lwd=2)
+abline(h=grand,col="black",lwd=2)
+points(1:length(pulp$bright),md.fixed.predict)
+```
+
+Obviously, predicted values, as well as the fitted values, are the group means for the corresponding groups.
+**What is the null hypothesis that ANOVA tests?**
+mean is the same
+
+
+**2.1.1.1 Fit random effects model.**
+
+## operator is the random effect.
+
+##Random special intercept for each operator within each group constant intercept, intercept themselves are randomly selected
+
+Recall ANOVA table.
+```{r}
+md.fixed.anova
+```
+
+```{r}
+md.fixed.anova$`Mean Sq`
+```
+If operator effects are treated as a sample from population of random effects then the variance of operator effect replaces group mean values of ANOVA as parameters.
+
+Fit random effects model using lmer().
+```{r}
+md.random<-lmerTest::lmer(bright~1+(1|operator),pulp)
+summary(md.random)
+```
+
+Fixed effects:
+             Estimate Std. Error t value
+ (Intercept)  60.4000     0.1494   404.2
+
+grand mean 60.4
+
+Variance Std.Dev.
+0.06808  0.2609  
+0.10625  0.3260  
+
+sigma^2 alpha 0.06808 
+sigma^2 epsilon 0.10625  residual is the same from ANOVA before SSE/df_SSE
+
+In ANOVA, 
+If we only interested in treatment,
+sigma is also not zero as we can see from the chart.
+
+```{r}
+(md.random.varCorr<-as.data.frame(VarCorr(md.random)))
+```
+
+
+```{r}
+(md.random.predict<-predict(md.random))
+```
+
+
+
+```{r}
+matplot(1:length(pulp$bright),plotData[,1:4],col=c("magenta","green","blue","orange"),
+        pch=16,ylab="Brightness",xlab="Index")
+lines(1:length(pulp$bright),plotData[,5],col="magenta",lwd=2)
+lines(1:length(pulp$bright),plotData[,6],col="green",lwd=2)
+lines(1:length(pulp$bright),plotData[,7],col="blue",lwd=2)
+lines(1:length(pulp$bright),plotData[,8],col="orange",lwd=2)
+abline(h=grand,col="black",lwd=2)
+points(1:length(pulp$bright),md.random.predict)
+```
+
+The differences between the group means and the fitted values are:
+```{r}
+fitted(md.fixed)-fitted(md.random)
+```
+
+The differences between the grand mean and the fitted values are:
+```{r}
+fitted(md.random)-grand
+unique(fitted(md.random)-grand)
+```
+
+Compare them with the random effects
+
+```{r}
+(randomEffects<-ranef(md.random))
+```
+
+Ratio of fixed effects to random effects is constant.
+coefficient of shrinkage
+
+```{r}
+(fixedEffects<-c(gr.a,gr.b,gr.c,gr.d)-grand)
+```
+
+```{r}
+fixedEffects/randomEffects$operator
+```
+
+Random effects are deviations of constant group levels from the grand mean.
+Ratio of fixed effects to random effects is constant.
+
+Predictions of model with random effects show shrinkage characterized by the ratio of fixed effects to random effects.
+
+To reproduce variance of random effect by operator use this post:
+
+https://stats.stackexchange.com/questions/68106/understanding-the-variance-of-random-effects-in-lmer-models
+
+
+
+```{r}
+suppressWarnings(library(arm)) #function se.ranef()
+```
+
+```{r}
+var(randomEffects$operator)+sum(se.ranef(md.random)$operator^2)/4
+```
+
+# See more explanation on pdf
+Compare:
+
+Number of parameters in each model
+For lm(): intercept, 3 slopes for dummy variables, variance of residuals;
+For lmer(): intercept, variance of the random effect, variance of residuals
+
+## 2. Summary statistics of residuals
+
+```{r}
+md.fixed.residuals<-summary(md.fixed)$residuals
+md.random.residuals<-summary(md.random)$residuals
+## summary from lme4 is returned
+## some computational error has occurred in lmerTest
+cbind(fixedEffectsResiduals=md.fixed.residuals,randomEffectsResiduals=md.random.residuals)
+```
+
+```{r}
+cbind(summary(md.fixed.residuals),summary(md.random.residuals))
+```
+Why residuals are so different?
+
+Compare the random effects residuals with Pearson residuals.
+
+```{r}
+cbind(fixedEffectsRes=md.fixed.residuals,
+      randomEffectsRes=md.random.residuals,
+      randomEffectsResPearson=residuals(md.random,type="pearson",scale=TRUE))
+# Pearson residuals are scaled by the standard deviation for lmer()
+```
+
+**What is the null hypothesis for random effects model?**
+
+#sigma_alpha is 0
+
+
+
+## 3. Example
+```{r}
+Marketing.Probabilities.Data<-data.frame(cbind(Age.20.30=c(.7,.55,.1,.2),
+                                               Age.30.40=c(.5,.4,.1,.2),
+                                               Age.40.50=c(.3,.2,.07,.09)))
+rownames(Marketing.Probabilities.Data)<-c("F.mean","M.mean","F.sd","M.sd")
+kable(Marketing.Probabilities.Data)
+```
+
+Overall error of observation ϵ has normal distribution with zero mean and σϵ=.02.
+
+Simulate data frame consistent with these observations and reproduce the analysis. Use the seed:
+
+
+```{r}
+set.seed(49274)
+Sample<-rnorm(1200)
+Eps<-Sample[1:600]*.02
+Marketing.Probabilities<-data.frame(Age=c(rep("Age20-30",100),rep("Age20-30",100),
+rep("Age30-40",100),rep("Age30-40",100),
+rep("Age40-50",100),rep("Age40-50",100)),
+Gender=c(rep("F",100),rep("M",100),rep("F",100),
+rep("M",100),rep("F",100),rep("M",100)))
+Simulated.Probabilities<-c(Sample[601:700]*.1+.7,Sample[701:800]*.2+.55,
+Sample[801:900]*.1+.5,Sample[901:1000]*.2+.4,
+Sample[1001:1100]*.07+.3,Sample[1101:1200]*.09+.2)
+Marketing.Probabilities$Probability<-Simulated.Probabilities+Eps
+
+```
+
+
+
+ranef(Lmer.by.Age)
+## $Age
+## (Intercept)
+## Age20-30 0.17957933
+## Age30-40 0.01338246
+## Age40-50 -0.19296179
+
+random affects: after shrinkage
+
+
+
+
