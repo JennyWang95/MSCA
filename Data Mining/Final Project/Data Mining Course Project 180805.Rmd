@@ -1,0 +1,1337 @@
+---
+title: "DM Project"
+author: "Elyse Zhang"
+date: "7/16/2018"
+output: html_document
+---
+
+```{r}
+library(readr)
+#diabetic.data = read_csv("/Users/mspolisetti/Desktop/R Studio/Data-Mining/CourseProject/diabetic_data.csv")
+
+diabetic.data = read_csv("/Users/Elyse/Documents/UChicago/Courses/Summer 2018/Data Mining/Projects/Project/dataset_diabetes/diabetic_data.csv")
+
+spec(diabetic.data)
+
+```
+
+
+```{r}
+library(dplyr)
+library(ggplot2)
+```
+
+**race**
+```{r}
+diabetic.data %>%
+  group_by(race) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+```
+
+** For this one, missing data can be shared among Caucasian and African American say roughly 80-20.
+```{r}
+set.seed(2273)
+race.filling = sample(c("Caucasian","AfricanAmerican"), 2273, replace=TRUE, prob = c(0.8,0.2))
+```
+
+```{r}
+diabetic.data$race[which(diabetic.data$race == '?')] = race.filling
+```
+
+```{r}
+diabetic.data$race = as.numeric(as.factor(diabetic.data$race))
+```
+
+**Mapping: African American 1, Asian 2, Caucasian 3, Hispanic 4, Other 5**
+
+**gender**
+```{r}
+diabetic.data %>%
+  group_by(gender) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+```
+
+```{r}
+set.seed(3)
+gender.filling = sample(c("Female","Male"), 3, replace=TRUE, prob = c(0.5,0.5))
+
+diabetic.data$gender[which(diabetic.data$gender == 'Unknown/Invalid')] = gender.filling
+```
+
+```{r}
+diabetic.data$gender = as.numeric(as.factor(diabetic.data$gender))
+```
+
+**Mapping: F 1, M 2**
+
+**age**  
+```{r}
+diabetic.data %>%
+  group_by(age) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+```
+
+We can have less groups, children+ young adult(0-20), adult(20-40), middle age(40-60),senior(60-80), very senior(80-100).
+
+Before we do that, we can fill in people age with 70 with Medicare as their insurance in case they are missing. 
+
+**payer_code**
+```{r}
+diabetic.data %>%
+  group_by(payer_code) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+```
+
+We started with 40% of the data unknown, 31.9% on Medicare, and 4.92% selfpay , rest ~25% insured.. So we can do regroup based on the known groups
+
+We can reduce unknown data by assuming ppl over 65, in this case 70 are all on Medicare. 
+```{r}
+diabetic.data[((diabetic.data$age %in% c("[70-80)","[80-90)","[90-100)")) & (diabetic.data$payer_code =='?')),]$payer_code = 2 #2 is medicare
+
+#diabetic.data[diabetic.data$age %in% c("[70-80)","[80-90)","[90-100)"),]$payer_code = 2
+```
+
+
+```{r}
+diabetic.data[!diabetic.data$payer_code %in% c('?','MC','SP',2),]$payer_code = 1 #1 is insured other
+diabetic.data[diabetic.data$payer_code =='MC',]$payer_code = 2 #2 is medicare
+diabetic.data[diabetic.data$payer_code =='SP',]$payer_code = 3 #3 is selfpay
+diabetic.data[diabetic.data$payer_code =='?',]$payer_code = 4 #4 is unknown
+```
+
+
+```{r}
+diabetic.data[diabetic.data$age %in% c("[0-10)","[10-20)"),]$age = 1
+diabetic.data[diabetic.data$age %in% c("[20-30)","[30-40)"),]$age = 2
+diabetic.data[diabetic.data$age %in% c("[40-50)","[50-60)"),]$age = 3
+diabetic.data[diabetic.data$age %in% c("[60-70)","[70-80)"),]$age = 4
+diabetic.data[diabetic.data$age %in% c("[80-90)","[90-100)"),]$age = 5
+```
+
+
+**weight**
+```{r}
+diabetic.data %>%
+  group_by(weight) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+```
+
+**We decided not to use Weight**
+
+```{r}
+diabetic.data %>%
+  group_by(admission_type_id) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+```
+
+**Map admission_type_id	description 1	Emergency 2	Urgent 3	Elective 4	Newborn 5	Not Available 6	NULL 7	Trauma Center 8	Not Mapped**
+
+We can essentially combine 5,6,8 as a group, and make 4	Newborn as part of 2 Urgent and 7	Trauma Center as part of 1 emergency
+
+```{r}
+diabetic.data[diabetic.data$admission_type_id == 7,]$admission_type_id = 1
+diabetic.data[diabetic.data$admission_type_id == 4,]$admission_type_id = 2
+diabetic.data[diabetic.data$admission_type_id %in% c(5,6,8),]$admission_type_id = 4
+
+```
+
+**New mapping 1	Emergency 2	Urgent 3	Elective 4 Not Available**
+
+**discharge_disposition_id**
+```{r}
+diabetic.data %>%
+  group_by(discharge_disposition_id) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+```
+
+**Majority of the people as group 1 id as 1 Discharged to home. 2-5, 9-10, 12, 15-17, 22-24, 27-30 discharged to some type of inpatient care institution, they are Group 2.  6, 8 areDischarged/transferred to home with home health service, Group 3.  7,18,25,26 are unknown as Group 4, and Group 5 of columns 11,13,14,19-21 are either transfered to hospice or deseased ** 
+
+```{r}
+diabetic.data[diabetic.data$discharge_disposition_id %in% c(2:5,9,10,12,15:17,22:24,27:30),]$discharge_disposition_id = 2
+
+diabetic.data[diabetic.data$discharge_disposition_id %in% c(6,8),]$discharge_disposition_id = 3
+
+diabetic.data[diabetic.data$discharge_disposition_id %in% c(7,18,25),]$discharge_disposition_id = 4
+
+diabetic.data[diabetic.data$discharge_disposition_id %in% c(11,13:14,19:21),]$discharge_disposition_id = 5
+
+```
+
+## WILL NEED TO DELETE GROUP 5 WHILING DOING PREDICTION
+
+**admission_source_id**
+```{r}
+diabetic.data %>%
+  group_by(admission_source_id) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+
+```
+
+Old mapping 1:6,8, 10,18,19,22,25,26 are referals or transfers from different facilities or home with less urgency, where as 7,11-14 and 23 24 are urgent from emergency room or premature birth etc. 9,15,17 20,21 are NAs.
+
+```{r}
+diabetic.data[diabetic.data$admission_source_id %in% c(1:6,8,10,18,19,22,25,26),]$admission_source_id = 1
+
+diabetic.data[diabetic.data$admission_source_id %in% c(7,11:14,23,24),]$admission_source_id = 2
+
+diabetic.data[diabetic.data$admission_source_id %in% c(9,15,17,20,21 ),]$admission_source_id = 3
+
+```
+
+**New mapping, referals 1, urgent or emergency,2 nas are 3**
+
+
+**medical_specialty**
+
+```{r}
+diabetic.data %>%
+  group_by(medical_specialty) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  mutate(ratio = count/sum(count))
+```
+
+50% of the data unknown, 15% InternalMedicine. Decide to drop assuming diagosis 1 2 3 have some overlapping information
+
+**diag_1**
+
+```{r}
+# Circulatory 390–459, 785
+diabetic.data[diabetic.data$diag_1 %in% c(390:459,785),]$diag_1 = 1 
+
+# Respiratory 460–519, 786
+diabetic.data[diabetic.data$diag_1 %in% c(460:519,786),]$diag_1 = 2 
+
+# Digestive 520–579, 787
+diabetic.data[diabetic.data$diag_1 %in% c(520:579,787),]$diag_1 = 3
+
+# Diabetes 250.xx
+diabetic.data[substring(diabetic.data$diag_1,1,3) == 250,]$diag_1 = 4
+
+# Injury 800–999
+diabetic.data[diabetic.data$diag_1 %in% c(800:999),]$diag_1 = 5
+
+# Musculoskeletal 710–739
+diabetic.data[diabetic.data$diag_1 %in% c(710:739),]$diag_1 = 6
+
+# Genitourinary 580–629, 788
+diabetic.data[diabetic.data$diag_1 %in% c(580:629, 788),]$diag_1 = 7
+
+# Neoplasms 140–239
+diabetic.data[diabetic.data$diag_1 %in% c(140:239),]$diag_1 = 8
+
+# Others
+diabetic.data[! diabetic.data$diag_1 %in% c(1:8),]$diag_1 = 9
+
+```
+
+
+**Mapping: Circulatory 1, Respiratory 2, Digestive 3, Diabetes 4, Injury 5, Musculoskeletal 6, Genitourinary 7, Neoplasms 8, any groups covers less than 3.5% of the patients are put into others which is 9**
+
+```{r}
+diabetic.data %>%
+  group_by(diag_1) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  mutate(ratio = count/sum(count))
+```
+
+**Same mapping and methods for diagosis 2 and 3**
+```{r}
+# Circulatory 390–459, 785
+diabetic.data[diabetic.data$diag_2 %in% c(390:459,785),]$diag_2 = 1 
+
+# Respiratory 460–519, 786
+diabetic.data[diabetic.data$diag_2 %in% c(460:519,786),]$diag_2 = 2 
+
+# Digestive 520–579, 787
+diabetic.data[diabetic.data$diag_2 %in% c(520:579,787),]$diag_2 = 3
+
+# Diabetes 250.xx
+diabetic.data[substring(diabetic.data$diag_2,1,3) == 250,]$diag_2 = 4
+
+# Injury 800–999
+diabetic.data[diabetic.data$diag_2 %in% c(800:999),]$diag_2 = 5
+
+# Musculoskeletal 710–739
+diabetic.data[diabetic.data$diag_2 %in% c(710:739),]$diag_2 = 6
+
+# Genitourinary 580–629, 788
+diabetic.data[diabetic.data$diag_2 %in% c(580:629, 788),]$diag_2 = 7
+
+# Neoplasms 140–239
+diabetic.data[diabetic.data$diag_2 %in% c(140:239),]$diag_2 = 8
+
+# Others
+diabetic.data[! diabetic.data$diag_2 %in% c(1:8),]$diag_2 = 9
+
+```
+
+
+```{r}
+diabetic.data %>%
+  group_by(diag_2) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  mutate(ratio = count/sum(count))
+```
+
+
+```{r}
+# Circulatory 390–459, 785
+diabetic.data[diabetic.data$diag_3 %in% c(390:459,785),]$diag_3 = 1 
+
+# Respiratory 460–519, 786
+diabetic.data[diabetic.data$diag_3 %in% c(460:519,786),]$diag_3 = 2 
+
+# Digestive 520–579, 787
+diabetic.data[diabetic.data$diag_3 %in% c(520:579,787),]$diag_3 = 3
+
+# Diabetes 250.xx
+diabetic.data[substring(diabetic.data$diag_3,1,3) == 250,]$diag_3 = 4
+
+# Injury 800–999
+diabetic.data[diabetic.data$diag_3 %in% c(800:999),]$diag_3 = 5
+
+# Musculoskeletal 710–739
+diabetic.data[diabetic.data$diag_3 %in% c(710:739),]$diag_3 = 6
+
+# Genitourinary 580–629, 788
+diabetic.data[diabetic.data$diag_3 %in% c(580:629, 788),]$diag_3 = 7
+
+# Neoplasms 140–239
+diabetic.data[diabetic.data$diag_3 %in% c(140:239),]$diag_3 = 8
+
+# Others
+diabetic.data[! diabetic.data$diag_3 %in% c(1:8),]$diag_3 = 9
+
+```
+
+
+```{r}
+diabetic.data %>%
+  group_by(diag_3) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  mutate(ratio = count/sum(count))
+```
+
+**max_glu_serum**
+
+```{r}
+diabetic.data %>%
+  group_by(max_glu_serum) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+```
+
+```{r}
+diabetic.data[diabetic.data$max_glu_serum == 'None',]$max_glu_serum = 1
+diabetic.data[diabetic.data$max_glu_serum == 'Norm',]$max_glu_serum = 2
+diabetic.data[diabetic.data$max_glu_serum %in% c('>200','>300'),]$max_glu_serum = 3
+```
+
+**New mapping None, or not measured group 1, normal group 2, and larger than 200 abnormal/elevated, group 3**
+
+** A1Cresult **
+```{r}
+diabetic.data %>%
+  group_by(A1Cresult) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+```
+
+```{r}
+diabetic.data[diabetic.data$A1Cresult == 'None',]$A1Cresult = 1
+diabetic.data[diabetic.data$A1Cresult == 'Norm',]$A1Cresult = 2
+diabetic.data[diabetic.data$A1Cresult %in% c('>7','>8'),]$A1Cresult = 3
+```
+
+**New mapping None, or not measured group 1, normal group 2, and larger than 200 abnormal/elevated, group 3**
+
+** Looking at all medications  **
+** metformin **
+```{r}
+diabetic.data %>%
+  group_by(metformin) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+```
+
+** repaglinide **
+```{r}
+diabetic.data %>%
+  group_by(repaglinide) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+```
+
+** nateglinide **
+```{r}
+diabetic.data %>%
+  group_by(nateglinide) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+```
+
+** chlorpropamide **
+```{r}
+diabetic.data %>%
+  group_by(chlorpropamide) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+```
+
+** glimepiride **
+```{r}
+diabetic.data %>%
+  group_by(glimepiride) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+```
+
+** Can drop acetohexamide as it was hardly ever administered? **
+** acetohexamide **
+```{r}
+diabetic.data %>%
+  group_by(acetohexamide) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+```
+** glipizide **
+```{r}
+diabetic.data %>%
+  group_by(glipizide) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+```
+
+** glyburide **
+```{r}
+diabetic.data %>%
+  group_by(glyburide) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+```
+
+**Can drop this one too. Not quatifiable variation **
+** tolbutamide **
+```{r}
+diabetic.data %>%
+  group_by(tolbutamide) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+```
+
+** pioglitazone **
+```{r}
+diabetic.data %>%
+  group_by(pioglitazone) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+```
+
+** rosiglitazone **
+```{r}
+diabetic.data %>%
+  group_by(rosiglitazone) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+```
+
+** acarbose **
+```{r}
+diabetic.data %>%
+  group_by(acarbose) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+```
+
+**Can drop this one too. Not quatifiable variation **
+** miglitol **
+```{r}
+diabetic.data %>%
+  group_by(miglitol) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+```
+
+**Can drop this one too. Not quatifiable variation **
+** troglitazone **
+```{r}
+diabetic.data %>%
+  group_by(troglitazone) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+```
+
+**Can drop this one too. Not quatifiable variation **
+** tolazamide **
+```{r}
+diabetic.data %>%
+  group_by(tolazamide) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+```
+
+**Can drop this one too. never administered **
+** examide **
+```{r}
+diabetic.data %>%
+  group_by(examide) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+```
+
+**Can drop this one too. never administered **
+** citoglipton **  
+```{r}
+diabetic.data %>%
+  group_by(citoglipton) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+```
+
+** insulin **
+```{r}
+diabetic.data %>%
+  group_by(insulin) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+```
+
+** glyburide-metformin **
+```{r}
+diabetic.data %>%
+  group_by(`glyburide-metformin`) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+```
+
+** glipizide-metformin ** 
+**Can drop this one too. Almost never administered **
+```{r}
+diabetic.data %>%
+  group_by(`glipizide-metformin`) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+```
+
+**Can drop this one too. never administered **
+** glimepiride-pioglitazone **
+```{r}
+diabetic.data %>%
+  group_by(`glimepiride-pioglitazone`) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+```
+
+**Can drop this one too. never administered **
+** metformin-rosiglitazone **
+```{r}
+diabetic.data %>%
+  group_by(`metformin-rosiglitazone`) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+```
+
+**Can drop this one too. never administered **
+** metformin-pioglitazone ** 
+```{r}
+diabetic.data %>%
+  group_by(`metformin-pioglitazone`) %>%
+  summarise(count = n()) %>%
+  mutate(ratio = count/sum(count))
+```
+** End of medications**
+
+## Add New Features
+** Number of Medication Changes ** 
+** We read that Medication change for diabetics upon admission has been shown by previous research to be associated with lower readmission rates. We decided to count how many changes were made in total for each patient, and declared that a new feature **
+
+```{r}
+diabetic.data = diabetic.data %>%
+  mutate(num_med_dose_change = apply(diabetic.data[,25:47], 1, function(x) length(which(x=='Up'|x=='Down' ))))
+```
+
+```{r}
+table(diabetic.data$num_medications_change)
+```
+
+
+** change** Indicates if there was a change in diabetic medications (either dosage or generic
+name). Values: “change” as 1 and “no change” as 0.
+
+```{r}
+table(diabetic.data$change)
+```
+
+```{r}
+diabetic.data[diabetic.data$change == 'Ch',]$change = 1
+diabetic.data[diabetic.data$change == 'No',]$change= 0
+```
+
+**diabetesMed** Indicates if there was any diabetic medication prescribed. Values: “yes” and “no”
+```{r}
+table(diabetic.data$diabetesMed)
+```
+
+```{r}
+diabetic.data[diabetic.data$diabetesMed == 'Yes',]$diabetesMed = 1
+diabetic.data[diabetic.data$diabetesMed == 'No',]$diabetesMed= 0
+```
+
+
+** Recoding the outcome variable: The outcome we are looking at is whether the patient gets readmitted to the hospital within 30 days or not. The variable actually has < 30, > 30 and No Readmission categories. **
+```{r}
+table(diabetic.data$readmitted)
+```
+
+```{r}
+diabetic.data[!diabetic.data$readmitted == '<30',]$readmitted = 0
+diabetic.data[diabetic.data$readmitted == '<30',]$readmitted= 1
+diabetic.data$readmitted = as.factor(diabetic.data$readmitted)
+```
+
+```{r}
+dropCols <- c('weight','medical_specialty','acetohexamide', 'tolbutamide', 'miglitol', 'troglitazone', 'tolazamide', 'examide','citoglipton', 'glipizide-metformin', 'glimepiride-pioglitazone','metformin-rosiglitazone', 'metformin-pioglitazone' )
+
+df <- as.data.frame(diabetic.data)
+diabetic.data <-df[ ,!(names(diabetic.data) %in% dropCols)]
+str(diabetic.data)
+```
+
+```{r}
+for (i in c(3:8, 10, 17:19,21,22,35,36))
+  diabetic.data[,i] = as.factor(diabetic.data[,i])
+
+str(diabetic.data)
+```
+
+## Remove rows  
+* ** Primary (diag_1), Secondary (diag_2) and Additional (diag_3) diagnoses were have very few missing values. Technically, if all three are missing, that’s bad data. So we only drop those records where all three diagnoses are missing **
+* **People deseased or transfered to hospice care**
+These are still good for clustering,  Just not for prediction.
+
+## Drop columns
+**Drop cols with missing values, Unused medications : acetohexamide, tolbutamide, miglitol, troglitazone, tolazamide, examide,citoglipton, glipizide-metformin, glimepiride-pioglitazone,metformin-rosiglitazone, metformin-pioglitazone ** 
+
+```{r}
+dropCols <- c('weight','medical_specialty','acetohexamide', 'tolbutamide', 'miglitol', 'troglitazone', 'tolazamide', 'examide','citoglipton', 'glipizide-metformin', 'glimepiride-pioglitazone','metformin-rosiglitazone', 'metformin-pioglitazone' )
+
+df <- as.data.frame(diabetic.data)
+diabetic.data <-df[ ,!(names(diabetic.data) %in% dropCols)]
+```
+
+## Reorganize and rename columns 
+```{r}
+#colnames(diabetic.data)
+diabetic.data = diabetic.data[ , c(37,1:8, 10, 9,11:16,20,17:19,21:22,36,35,38,23:34)] 
+```
+
+```{r}
+#colnames(diabetic.data)
+colnames(diabetic.data)[c(1,7:9,24:25)] <- c("readmitted_30","admission_type","discharge_disposition","admission_source","have_diabetesMed","have_dose_brand_change")
+```
+
+
+
+```{r}
+str(diabetic.data)
+head(diabetic.data)
+```
+
+
+```{r}
+library(ggplot2)
+library(plotROC)
+library(gridExtra)
+library(grid)
+library(ggthemes)
+```
+
+
+```{r}
+readm = diabetic.data
+```
+
+## Additional transformation
+** insulin **
+```{r}
+readm$insulin = as.factor(readm$insulin)
+levels(readm$insulin)
+```
+
+```{r}
+levels(readm$insulin) = c(3,1,2,4)
+str(readm$insulin)
+```
+
+**mapping : 1 is not having insulin, 2 is steady dose, 3 is reduced dose, 4 is inceeased dose**
+
+**Deleting deseased patients or patients transferred to hospice care**
+```{r}
+readm = readm[!readm$discharge_disposition == 5,]
+```
+
+**Deleting all the other diabetes medicines and patient id and encounter id**
+```{r}
+readm = readm[,-c(2,3,27:36,38)]
+```
+
+**Visualize and normalize the numerical variable**
+```{r}
+hist(readm$time_in_hospital) #col9 change to factor
+
+ggplot(readm, aes(x=time_in_hospital, fill=readmitted_30, color=readmitted_30 )) +
+  geom_histogram(position="identity", alpha=0.5) +
+  theme(legend.position="none") +
+  labs(x= 'Number of days patients stayed in hospital', y = 'Count') 
+
+
+readm[readm$time_in_hospital<=2,]$time_in_hospital = 1
+readm[(readm$time_in_hospital>2) & (readm$time_in_hospital<=5),]$time_in_hospital = 2
+readm[readm$time_in_hospital>5,]$time_in_hospital = 3
+
+
+```
+
+```{r}
+readm$time_in_hospital = as.factor(readm$time_in_hospital)
+table(readm$time_in_hospital)
+```
+
+**map: 1 <=2, 2 3-5 day, 3: longer than 5**
+
+
+```{r}
+hist(readm$num_lab_procedures) # col 10 no change
+```
+
+```{r}
+hist(readm$num_procedures) #col 11 change to factor
+```
+
+```{r}
+readm[readm$num_procedures >=4,]$num_procedures = 4
+readm$num_procedures = as.factor(readm$num_procedures)
+table(readm$num_procedures)
+```
+
+```{r}
+hist(readm$num_medications) #col 12 log
+hist(log(readm$num_medications))
+
+readm$num_medications = log(readm$num_medications)
+
+```
+
+```{r}
+p1 = ggplot(readm, aes(x=num_medications, fill=readmitted_30, color=readmitted_30)) +
+  geom_histogram(position="identity", alpha=0.5) +
+  theme(legend.position="none") +
+  theme_fivethirtyeight()
+
+p2 = ggplot(readm, aes(x=log(num_medications), fill=readmitted_30, color=readmitted_30)) +
+  geom_histogram(position="identity", alpha=0.5) +
+  theme(legend.position="none") +
+  theme_fivethirtyeight()
+
+grid.arrange(p1, p2, ncol =2, top = textGrob("Num of Medications variable Transformation"))
+```
+
+
+
+
+```{r}
+hist(readm$number_outpatient) # col 13 the outlier change to bianry factor
+table(as.factor(readm$number_outpatient))
+```
+
+```{r}
+readm[readm$number_outpatient != 0,]$number_outpatient = 1
+readm$number_outpatient = as.factor(readm$number_outpatient)
+table(readm$number_outpatient)
+```
+
+```{r}
+colnames(readm)[13] = 'stay_outpatient'
+```
+
+
+
+```{r}
+hist(readm$number_emergency) #col 14 delete the outlier change to binary factor
+table(as.factor(readm$number_emergency))
+
+ggplot(readm, aes(x=number_emergency, fill=readmitted_30, color=readmitted_30 )) +
+  geom_histogram(position="identity", alpha=0.5) +
+  theme(legend.position="none") +
+  labs(x= 'Number of days patients stayed in Emergency', y = 'Count') 
+```
+
+```{r}
+readm[readm$number_emergency != 0,]$number_emergency = 1
+readm$number_emergency = as.factor(readm$number_emergency)
+table(readm$number_emergency)
+```
+
+```{r}
+colnames(readm)[14] = 'stay_emergency'
+```
+
+
+```{r}
+hist(readm$number_inpatient) #col 15 delete the outlier change to factor
+```
+
+```{r}
+table(as.factor(readm$number_inpatient))
+
+readm[readm$number_inpatient >=3,]$number_inpatient = 3
+readm$number_inpatient = as.factor(readm$number_inpatient)
+table(readm$number_inpatient)
+```
+
+
+```{r}
+hist(readm$number_diagnoses) # col 16 delete outlier >10 and change to factor of 9 levels
+table(as.factor(readm$number_diagnoses))
+```
+
+```{r}
+readm[readm$number_diagnoses >=9,]$number_diagnoses = 9
+readm$number_diagnoses = as.factor(readm$number_diagnoses)
+table(readm$number_diagnoses)
+```
+
+
+```{r}
+hist(readm$num_med_dose_change) #col 24 change to factor of three levels
+table(as.factor(readm$num_med_dose_change))
+```
+
+```{r}
+readm[readm$num_med_dose_change>=2,]$num_med_dose_change = 2
+readm$num_med_dose_change = as.factor(readm$num_med_dose_change)
+table(readm$num_med_dose_change)
+```
+
+
+```{r}
+str(readm)
+summary(readm$readmitted_30)
+```
+
+```{r}
+library(GGally)
+```
+
+```{r}
+#ggpairs(readm, aes(colour = readmitted_30, alpha = 0.4))
+```
+
+
+
+## Set Seeds for crossvalidation
+```{r}
+set.seed(123)
+train.indexes = sample(nrow(readm), size=0.7*nrow(readm))
+
+pre.Train = readm[train.indexes,]
+pre.Holdout = readm[-train.indexes,]
+```
+
+
+```{r}
+# library(bimba)
+library(ROSE)
+# library(DMwR)
+```
+
+
+```{r}
+table(pre.Train$readmitted_30)
+```
+
+
+```{r}
+pre.Train.SMOTE <- ovun.sample(readmitted_30 ~ ., data = pre.Train, method = "over",
+N = 61631*2)$data
+```
+
+
+
+```{r}
+table(pre.Train.SMOTE$readmitted_30)
+```
+
+
+
+
+## Prediction Classification Tree
+```{r}
+library(rpart)
+library(RColorBrewer)
+library(rpart.plot)
+library(AUC)
+```
+
+### No cp 
+```{r}
+# set.seed(101)
+# Train.nocp=rpart(pre.Train.SMOTE,control=rpart.control(cp=0,minsplit=30,xval=10))
+# #10-fold cross validation xval
+```
+
+```{r}
+# printcp(Train.nocp)
+# plotcp(Train.nocp)
+```
+
+
+
+## Prediction Classification Tree
+
+### No cp 
+```{r}
+# set.seed(101)
+# Train.nocp=rpart(pre.Train.SMOTE,control=rpart.control(cp=0,minsplit=30,xval=10))
+# #10-fold cross validation xval
+```
+
+```{r}
+# printcp(Train.nocp)
+# plotcp(Train.nocp)
+```
+
+
+
+## Prediction Random Forest
+```{r}
+library(randomForest)
+```
+
+```{r}
+set.seed(202)
+Train.rf.fit <- randomForest(readmitted_30 ~ ., data=pre.Train)
+```
+
+
+```{r}
+plot(Train.rf.fit)
+legend('topright', colnames(Train.rf.fit$err.rate), col=1:3, fill=1:3)
+```
+
+```{r}
+Train.rf.fit.prediction = predict(Train.rf.fit,type="prob")[,2]
+head(Train.rf.fit.prediction )
+Train.rf.fit.prediction[Train.rf.fit.prediction >= 0.103] = 1
+Train.rf.fit.prediction[Train.rf.fit.prediction < 0.103] = 0
+```
+
+
+```{r}
+table(pre.Train[,1],Train.rf.fit.prediction)
+round(prop.table(table(pre.Train[,1],Train.rf.fit.prediction),1),2) 
+```
+
+
+
+```{r}
+# Get importance
+importance =  importance(Train.rf.fit)
+varImportance <- data.frame(Variables = row.names(importance), 
+                            Importance = round(importance[ ,'MeanDecreaseGini'],2))
+
+# Create a rank variable based on importance
+rankImportance <- varImportance %>%
+  mutate(Rank = paste0('#',dense_rank(desc(Importance))))
+
+# Use ggplot2 to visualize the relative importance of variables
+ggplot(rankImportance, aes(x = reorder(Variables, Importance), 
+    y = Importance, fill = Importance)) +
+  geom_bar(stat='identity') + 
+  geom_text(aes(x = Variables, y = 0.5, label = Rank),
+    hjust=0, vjust=0.55, size = 4, colour = 'orange') + 
+  labs(x = 'Variables') +
+  coord_flip() + 
+  theme_fivethirtyeight()
+```
+
+
+```{r}
+Test.rf.fit.prediction = predict(Train.rf.fit,newdata=pre.Holdout[,-1],type="class")
+# head(Test.rf.fit.prediction )
+# Test.rf.fit.prediction[Test.rf.fit.prediction >= 0.103] = 1
+# Test.rf.fit.prediction[Test.rf.fit.prediction < 0.103] = 0
+```
+
+```{r}
+library(caret)
+```
+
+
+```{r}
+confusionMatrix(pre.Holdout$readmitted_30, as.factor(Test.rf.fit.prediction))
+```
+
+
+```{r}
+table(pre.Holdout[,1],Test.rf.fit.prediction )
+round(prop.table(table(pre.Holdout[,1],Test.rf.fit.prediction),1),2)
+```
+
+```{r}
+Test.rf.fit.prediction.num = predict(Train.rf.fit,newdata=pre.Holdout[,-1],type="prob")[,2]
+auc(roc(Test.rf.fit.prediction.num, pre.Holdout$readmitted_30))
+
+plot(roc(Test.rf.fit.prediction.num, pre.Holdout$readmitted_30))
+abline(h = 0.7016153, col = 'red')
+abline(v = 0.4973862, col = 'blue')
+```
+
+```{r}
+rf.roc = cbind.data.frame(fpr =roc(Test.rf.fit.prediction.num, pre.Holdout$readmitted_30)$fpr, tpr = roc(Test.rf.fit.prediction.num, pre.Holdout$readmitted_30)$tpr)
+```
+
+
+```{r}
+#table(pre.Holdout[,1])
+```
+
+
+```{r}
+# set.seed(202)
+# Train.rf.fit.2 <- randomForest(readmitted_30 ~ .- max_glu_serum - stay_emergency -  have_diabetesMed -num_med_dose_change - stay_outpatient - have_dose_brand_change, data=pre.Train)
+```
+
+
+
+```{r}
+# Test.rf.fit.prediction.2 = predict(Train.rf.fit.2,newdata=pre.Holdout[,-1],type="prob")[,2]
+# head(Test.rf.fit.prediction.2 )
+# Test.rf.fit.prediction.2[Test.rf.fit.prediction.2 >= 0.105] = 1
+# Test.rf.fit.prediction.2[Test.rf.fit.prediction.2 < 0.105] = 0
+```
+
+```{r}
+# table(pre.Holdout[,1],Test.rf.fit.prediction.2 )
+# round(prop.table(table(pre.Holdout[,1],Test.rf.fit.prediction.2),1),5) #Effectiveness
+```
+
+
+## Prediction using Logistic
+
+```{r}
+library(MASS)
+```
+
+
+```{r}
+glm.full = glm(readmitted_30~. ,data=pre.Train.SMOTE, family=binomial(link=logit))
+summary(glm.full)
+```
+
+```{r}
+stepAIC(glm.full, direction="backward", trace = FALSE)
+```
+
+
+```{r}
+glm.predict = glm(formula = readmitted_30 ~ race + gender + age + admission_type + 
+    discharge_disposition + admission_source + payer_code + time_in_hospital + 
+    num_lab_procedures + num_procedures + num_medications + stay_outpatient + 
+    stay_emergency + number_inpatient + number_diagnoses + diag_1 + 
+    diag_2 + diag_3 + max_glu_serum + A1Cresult + have_diabetesMed + 
+    have_dose_brand_change + num_med_dose_change + insulin, family = binomial(link = logit), 
+    data = pre.Train.SMOTE)
+summary(glm.predict)
+```
+
+
+```{r}
+# Get importance
+importance.all = varImp(glm.predict, scale = FALSE)
+name.all = rownames(importance.all)
+
+importance = importance.all[c(2,5,6,12,13,17,20,22:24,28:30,33,34,42,56,64,67,69:72,74),]
+
+varImportance <- data.frame(Variables =  name.all[c(2,5,6,12,13,17,20,22:24,28:30,33,34,42,56,64,67,69:72,74)], 
+                            Importance = round(importance,2))
+
+# Create a rank variable based on importance
+rankImportance <- varImportance %>%
+  mutate(Rank = paste0('#',dense_rank(desc(Importance))))
+
+# Use ggplot2 to visualize the relative importance of variables
+ggplot(rankImportance, aes(x = reorder(Variables, Importance), 
+    y = Importance, fill = Importance)) +
+  geom_bar(stat='identity') + 
+  geom_text(aes(x = Variables, y = 0.5, label = Rank),
+    hjust=0, vjust=0.55, size = 4, colour = 'orange') + 
+  labs(x = 'Variables') +
+  coord_flip() + 
+  theme_fivethirtyeight()
+```
+
+
+```{r}
+lr.predicted.train = glm.predict$fitted.values
+lr.predicted.train[lr.predicted.train >= .44] = 1
+lr.predicted.train[lr.predicted.train < .44] = 0
+
+table(pre.Train.SMOTE$readmitted_30,lr.predicted.train)
+round(prop.table(table(pre.Train.SMOTE$readmitted_30 ,lr.predicted.train),1),5)
+```
+
+```{r}
+lr.predicted.holdout = predict(glm.predict, newdata = pre.Holdout, type="response")
+
+lr.predicted.holdout[lr.predicted.holdout >= .44] = 1
+lr.predicted.holdout[lr.predicted.holdout < .44] = 0
+```
+
+```{r}
+confusionMatrix(pre.Holdout$readmitted_30, as.factor(lr.predicted.holdout))
+```
+
+
+```{r}
+table(pre.Holdout$readmitted_30,lr.predicted.holdout)
+round(prop.table(table(pre.Holdout$readmitted_30,lr.predicted.holdout),1),5)
+#prop.table(table(pre.Holdout$readmitted_30,predicted.holdout),1)
+```
+
+
+
+
+```{r}
+predicted.holdout.num = predict(glm.predict, newdata = pre.Holdout, type="response")
+head(predicted.holdout.num)
+
+lr.holdout.num = cbind.data.frame(lr.holdout.pre.1 = predicted.holdout.num, lr.holdout.pre.0 = 1- predicted.holdout.num)
+
+auc(roc(predicted.holdout.num, pre.Holdout$readmitted_30))
+
+plot(roc(predicted.holdout.num, pre.Holdout$readmitted_30))
+abline(h = 0.7233480, col = 'red')
+abline(v = 0.4904159, col = 'blue')
+```
+
+```{r}
+lr.roc = cbind.data.frame(fpr =roc(predicted.holdout.num, pre.Holdout$readmitted_30)$fpr, tpr = roc(predicted.holdout.num, pre.Holdout$readmitted_30)$tpr)
+```
+
+
+
+```{r}
+#p <- ggplot(lr.holdout.num, aes(lr.holdout.pre.1, lr.holdout.pre.0))
+#p + geom_point(aes(colour = factor(pre.Holdout$readmitted_30)))
+
+# both.prediction = cbind.data.frame(actual = pre.Holdout$readmitted_30, lr.prediction = predicted.holdout.num,  rf.prediction =Test.rf.fit.prediction.num )
+```
+
+
+```{r}
+# longtest = melt_roc(both.prediction, 'actual', c('lr.prediction','rf.prediction'))
+# head(longtest)
+# ggplot(longtest, aes(d = D, m = M, color = name)) + geom_roc(n.cuts = 0) + style_roc()
+```
+
+```{r}
+ggplot() + 
+  geom_line(data = rf.roc, aes(x = fpr, y = tpr,color = "random forest")) +
+  geom_line(data = lr.roc, aes(x = fpr, y = tpr, color = 'logistic regression')) +
+  geom_abline(intercept =0, slope = 1, color=" black") +
+  geom_vline(xintercept = 0.5, linetype="dashed", color = "black") +
+  labs(x= 'False Positive Rate', y = 'True Positive Rate', title="ROC for prediction Model") 
+
+```
+
+```{r}
+library(gbm)
+```
+
+```{r}
+pre.Train.SMOTE$readmitted_30 = as.character(pre.Train.SMOTE$readmitted_30)
+model_gbm =gbm(readmitted_30 ~., data = pre.Train.SMOTE, n.trees = 2000)
+```
+
+
+```{r}
+gbm.prediction = predict(model_gbm,type="response", n.trees = 2000)
+#gbm.prediction = predict(model_gbm,type="prob")[,2]
+head(gbm.prediction,20)
+
+```
+
+
+```{r}
+gbm.prediction[gbm.prediction >= 0.452] = 1
+gbm.prediction[gbm.prediction < 0.452] = 0
+
+table(pre.Train.SMOTE[,1],gbm.prediction)
+round(prop.table(table(pre.Train.SMOTE[,1],gbm.prediction),1),4) 
+```
+
+
+```{r}
+gbm.prediction.holdout = predict(model_gbm, newdata = pre.Holdout ,type="response", n.trees = 2000)
+#gbm.prediction = predict(model_gbm,type="prob")[,2]
+
+```
+
+
+```{r}
+gbm.prediction.holdout[gbm.prediction.holdout >= 0.452] = 1
+gbm.prediction.holdout[gbm.prediction.holdout < 0.452] = 0
+
+table(pre.Holdout[,1],gbm.prediction.holdout)
+round(prop.table(table(pre.Holdout[,1],gbm.prediction.holdout),1),2) 
+```
+
+
+
+```{r}
+library(xgboost)
+library(tidyr)
+```
+
+
+```{r}
+xgb.as.matrix = as.matrix(pre.Train[,-c(1,23)])
+mode(xgb.as.matrix) = 'double'
+
+label = as.numeric(pre.Train$readmitted_30)-1
+```
+
+```{r}
+xgb_params_1 = list(
+  objective = "binary:logistic",                                               # binary classification
+  eta = 0.1,                                                                  # learning rate
+  max.depth = 3,                                                               # max tree depth
+  eval_metric = "auc"                                                          # evaluation/loss metric
+)
+```
+
+
+```{r}
+xgboost_train_model = xgboost(data = xgb.as.matrix, params = xgb_params_1,label = label, nthread = 5, nrounds = 250, verbose = FALSE, print_every_n = 1, early_stopping_rounds = 10 )
+```
+
+```{r}
+xgb_cv_1 = xgb.cv(params = xgb_params_1,
+                  data = xgb.as.matrix,
+                  label = label,
+                  nrounds = 250, 
+                  nfold = 5,   # number of folds in K-fold
+                  prediction = TRUE, # return the prediction using the final model 
+                  showsd = TRUE,  # standard deviation of loss across folds
+                  stratified = TRUE,  # sample is unbalanced; use stratified sampling
+                  print_every_n = 1, 
+                  early_stopping_rounds = 10
+)
+```
+
+
+```{r}
+xgb_cv_1
+```
+
+```{r}
+# plot the AUC for the training and testing samples
+xgb_cv_1$evaluation_log %>%
+  select('train_auc_mean','test_auc_mean') %>%
+  mutate(IterationNum = 1:n()) %>%
+  gather(TestOrTrain, AUC, -IterationNum) %>%
+  ggplot(aes(x = IterationNum, y = AUC, group = TestOrTrain, color = TestOrTrain)) + 
+  geom_line() + 
+  theme_bw()
+```
+
+
+
+```{r}
+xgb_train_prediction = predict(xgboost_train_model, newdata = xgb.as.matrix)
+head(xgb_train_prediction)
+```
+
+```{r}
+xgb_train_response = as.numeric(xgb_train_prediction>0.09)
+table(pre.Train$readmitted_30,xgb_train_response)
+round(prop.table(table(pre.Train$readmitted_30,xgb_train_response),1),4) 
+```
+
+
+
+```{r}
+test.matrix = as.matrix(pre.Holdout[,-c(1,23)])
+mode(test.matrix) = 'double'
+```
+
+```{r}
+pred <- predict(xgboost_train_model, newdata = test.matrix)
+head(pred)
+```
+
+```{r}
+xgb.prediction <- as.numeric(pred > 0.09)
+
+table(pre.Holdout$readmitted_30,xgb.prediction)
+round(prop.table(table(pre.Holdout$readmitted_30,xgb.prediction),1),4) 
+```
+
+
+
+
+
+```{r}
+# fit the model with the arbitrary parameters specified above
+xgb_1 = xgboost(data = as.matrix(df_train %>%
+                                   select(-SeriousDlqin2yrs)),
+                label = df_train$SeriousDlqin2yrs,
+                params = xgb_params_1,
+                nrounds = 100,                                                 # max number of trees to build
+                verbose = TRUE,                                         
+                print.every.n = 1,
+                early.stop.round = 10                                          # stop if no improvement within 10 trees
+)
+
+# cross-validate xgboost to get the accurate measure of error
+xgb_cv_1 = xgb.cv(params = xgb_params_1,
+                  data = as.matrix(df_train %>%
+                                     select(-SeriousDlqin2yrs)),
+                  label = df_train$SeriousDlqin2yrs,
+                  nrounds = 100, 
+                  nfold = 5,                                                   # number of folds in K-fold
+                  prediction = TRUE,                                           # return the prediction using the final model 
+                  showsd = TRUE,                                               # standard deviation of loss across folds
+                  stratified = TRUE,                                           # sample is unbalanced; use stratified sampling
+                  verbose = TRUE,
+                  print.every.n = 1, 
+                  early.stop.round = 10
+)
+
+# plot the AUC for the training and testing samples
+xgb_cv_1$dt %>%
+  select(-contains("std")) %>%
+  mutate(IterationNum = 1:n()) %>%
+  gather(TestOrTrain, AUC, -IterationNum) %>%
+  ggplot(aes(x = IterationNum, y = AUC, group = TestOrTrain, color = TestOrTrain)) + 
+  geom_line() + 
+  theme_bw()
+```
+
+
+
+
+
