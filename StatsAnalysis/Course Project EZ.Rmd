@@ -1,0 +1,704 @@
+---
+title: "Course Project_EZ"
+output: html_document
+---
+
+## Step 1.
+Read the data and visualize and get familiar with the variables.
+```{r}
+datapath<-"~/Documents/UChicago/Courses/Statistical Analysis/Final Project"
+AssignmentData<-
+  read.csv(file=paste(datapath,"regressionassignmentdata2014.csv",sep="/"),
+           row.names=1,header=TRUE,sep=",")
+head(AssignmentData)
+
+```
+
+The first 7 variables (input variables) are the daily records of the US Treasury yields to maturity. Plot the input variables as below.
+```{r}
+matplot(AssignmentData[,-c(8,9,10)],type='l')
+nn <- ncol(AssignmentData)
+legend("topright", colnames(AssignmentData),col=seq_len(nn),cex=0.8,fill=seq_len(nn))
+```
+
+Plot the input variables together with the output variable.The meaning of the variable Output will become clear later.
+```{r}
+matplot(AssignmentData[,-c(9,10)],type='l')
+nn <- ncol(AssignmentData)
+legend("topright", colnames(AssignmentData),col=seq_len(nn),cex=0.8,fill=seq_len(nn))
+```
+
+## Step 2.
+Estimate simple regression model with each of the input variables and the output variable given in AssignmentData.
+
+```{r}
+Input1.linear.Model = lm(AssignmentData$Output1~AssignmentData$USGG3M)
+Input2.linear.Model = lm(AssignmentData$Output1~AssignmentData$USGG6M)
+Input3.linear.Model = lm(AssignmentData$Output1~AssignmentData$USGG2YR)
+Input4.linear.Model = lm(AssignmentData$Output1~AssignmentData$USGG3YR)
+Input5.linear.Model = lm(AssignmentData$Output1~AssignmentData$USGG5YR)
+Input6.linear.Model = lm(AssignmentData$Output1~AssignmentData$USGG10YR)
+Input7.linear.Model = lm(AssignmentData$Output1~AssignmentData$USGG30YR)
+```
+
+Check available names of fields returned by lm() and summary() functions, if necessary.
+Analyze the summary.
+
+Check relevance of the estimated parameters and the model as a whole, amount of correlation explained.
+Store coefficients for each input variable.
+
+The following code gives an example of the analysis for the first input variable.
+```{r}
+summary(Input1.linear.Model)
+
+c(Total.Variance=var(AssignmentData[,8]),Unexplained.Variance=summary(Input1.linear.Model)$sigma^2)
+
+Coefficients.Input1 = Input1.linear.Model$coefficients
+Coefficients.Input1
+
+matplot(AssignmentData[,8],type="l",xaxt="n",col = "red")
+lines(Input1.linear.Model$fitted.values,col="black")
+```
+
+Second input, USGG6M.
+```{r}
+summary(Input2.linear.Model)
+
+c(Total.Variance=var(AssignmentData[,8]),Unexplained.Variance=summary(Input2.linear.Model)$sigma^2)
+
+Coefficients.Input2 = Input2.linear.Model$coefficients
+Coefficients.Input2
+
+matplot(AssignmentData[,8],type="l",xaxt="n",col = "red")
+lines(Input2.linear.Model$fitted.values,col="grey")
+```
+
+Third input, USGG2YR.
+```{r}
+summary(Input3.linear.Model)
+
+c(Total.Variance=var(AssignmentData[,8]),Unexplained.Variance=summary(Input3.linear.Model)$sigma^2)
+
+Coefficients.Input3 = Input3.linear.Model$coefficients
+Coefficients.Input3
+
+matplot(AssignmentData[,8],type="l",xaxt="n",col = "red")
+lines(Input3.linear.Model$fitted.values,col="green")
+```
+
+Fourth input, USGG3YR.
+```{r}
+summary(Input4.linear.Model)
+
+c(Total.Variance=var(AssignmentData[,8]),Unexplained.Variance=summary(Input4.linear.Model)$sigma^2)
+
+Coefficients.Input4 = Input4.linear.Model$coefficients
+Coefficients.Input4
+
+matplot(AssignmentData[,8],type="l",xaxt="n",col = "red")
+lines(Input4.linear.Model$fitted.values,col="blue")
+```
+
+Fifth input, USGG5YR.
+```{r}
+summary(Input5.linear.Model)
+
+c(Total.Variance=var(AssignmentData[,8]),Unexplained.Variance=summary(Input5.linear.Model)$sigma^2)
+
+Coefficients.Input5 = Input5.linear.Model$coefficients
+Coefficients.Input5
+
+matplot(AssignmentData[,8],type="l",xaxt="n",col = "red")
+lines(Input5.linear.Model$fitted.values,col="cyan")
+```
+
+Sixth input, USGG10YR.
+```{r}
+summary(Input6.linear.Model)
+
+c(Total.Variance=var(AssignmentData[,8]),Unexplained.Variance=summary(Input6.linear.Model)$sigma^2)
+
+Coefficients.Input6 = Input6.linear.Model$coefficients
+Coefficients.Input6
+
+matplot(AssignmentData[,8],type="l",xaxt="n",col = "red")
+lines(Input6.linear.Model$fitted.values,col="Magenta")
+```
+
+Seventh input, USGG30YR.
+```{r}
+summary(Input7.linear.Model)
+
+c(Total.Variance=var(AssignmentData[,8]),Unexplained.Variance=summary(Input7.linear.Model)$sigma^2)
+
+Coefficients.Input7 = Input7.linear.Model$coefficients
+Coefficients.Input7
+
+matplot(AssignmentData[,8],type="l",xaxt="n",col = "red")
+lines(Input7.linear.Model$fitted.values,col="yellow")
+```
+
+**Collect all slopes and intercepts in one table and print this table. Try to do it in one line using apply() function.**
+```{r}
+lms.coefficients<- apply(AssignmentData[,1:7],2,function(z) lm(AssignmentData$Output1 ~ z)$coefficients)
+lms.coefficients
+
+#alternative
+#lms.coefficients<- sapply(1:7, function(z) lm(AssignmentData$Output1 ~ AssignmentData[,z])$coefficients)
+```
+
+
+## Step 3.
+Fit linear regression models using single output (column 8 Output1) as input and each of the original inputs as outputs.
+```{r}
+RInput1.linear.Model = lm(AssignmentData$USGG3M ~ AssignmentData$Output1)
+RInput2.linear.Model = lm(AssignmentData$USGG6M ~ AssignmentData$Output1)
+RInput3.linear.Model = lm(AssignmentData$USGG2YR ~ AssignmentData$Output1)
+RInput4.linear.Model = lm(AssignmentData$USGG3YR ~ AssignmentData$Output1)
+RInput5.linear.Model = lm(AssignmentData$USGG5YR ~ AssignmentData$Output1)
+RInput6.linear.Model = lm(AssignmentData$USGG10YR ~ AssignmentData$Output1)
+RInput7.linear.Model = lm(AssignmentData$USGG30YR ~ AssignmentData$Output1)
+```
+
+**Collect all slopes and intercepts in one table and print this table.**
+```{r}
+reverse.lms.coefficients<- sapply(1:7, function(z) lm(AssignmentData[,z] ~ AssignmentData$Output1)$coefficients)
+reverse.lms.coefficients
+```
+
+
+## Step 4
+Estimate logistic regression using all inputs and the data on FED tightening and easing cycles.
+```{r}
+AssignmentDataLogistic<-data.matrix(AssignmentData,rownames.force="automatic")
+```
+
+Prepare the easing-tightening data.
+Make the easing column equal to 0 during the easing periods and NA otherwise.
+Make the tightening column equal to 1 during the tightening periods and NA otherwise.
+```{r}
+# Create columns of easing periods (as 0s) and tightening periods (as 1s)
+EasingPeriods<-AssignmentDataLogistic[,9]
+EasingPeriods[AssignmentDataLogistic[,9]==1]<-0
+TighteningPeriods<-AssignmentDataLogistic[,10]
+# Check easing and tightening periods
+cbind(EasingPeriods,TighteningPeriods)[c(550:560,900:910,970:980),]
+```
+
+Remove the periods of neither easing nor tightening.
+
+```{r}
+All.NAs<-is.na(EasingPeriods)&is.na(TighteningPeriods)
+AssignmentDataLogistic.EasingTighteningOnly<-AssignmentDataLogistic
+AssignmentDataLogistic.EasingTighteningOnly[,9]<-EasingPeriods
+AssignmentDataLogistic.EasingTighteningOnly<-AssignmentDataLogistic.EasingTighteningOnly[!All.NAs,]
+AssignmentDataLogistic.EasingTighteningOnly[is.na(AssignmentDataLogistic.EasingTighteningOnly[,10]),10]<-0 #without this, there still are lots of tightening data = NA, they need to be changed to 0
+```
+
+
+```{r}
+matplot(AssignmentDataLogistic.EasingTighteningOnly[,-c(9,10)],type="l",ylab="Data and Binary Fed Mode")
+lines(AssignmentDataLogistic.EasingTighteningOnly[,10]*20,col="red") #times 20 for viewing
+#only tightening
+```
+
+Estimate logistic regression with 3M yields as predictors for easing/tightening output.
+```{r}
+LogisticModel.TighteningEasing_3M<-glm(AssignmentDataLogistic.EasingTighteningOnly[,10]~                                      AssignmentDataLogistic.EasingTighteningOnly[,1],family=binomial(link=logit))
+summary(LogisticModel.TighteningEasing_3M)
+```
+
+```{r}
+matplot(AssignmentDataLogistic.EasingTighteningOnly[,-c(9,10)],type="l",ylab="Data and Fitted Values")
+lines(AssignmentDataLogistic.EasingTighteningOnly[,10]*20,col="red")
+lines(LogisticModel.TighteningEasing_3M$fitted.values*20,col="green")
+```
+
+Now use all inputs as predictors for logistic regression.
+
+```{r}
+LogisticModel.TighteningEasing_All<-glm(AssignmentDataLogistic.EasingTighteningOnly[,10]~                                      AssignmentDataLogistic.EasingTighteningOnly[,-c(8,9,10)],family=binomial(link=logit))
+summary(LogisticModel.TighteningEasing_All)
+```
+
+Explore the estimated model.
+```{r}
+summary(LogisticModel.TighteningEasing_All)$aic
+
+summary(LogisticModel.TighteningEasing_All)$coefficients[,c(1,4)]
+
+matplot(AssignmentDataLogistic.EasingTighteningOnly[,-c(9,10)],type="l",ylab="Results of Logistic Regression")
+lines(AssignmentDataLogistic.EasingTighteningOnly[,10]*20,col="red")
+lines(LogisticModel.TighteningEasing_All$fitted.values*20,col="green")
+```
+
+**Interpret the coefficients of the model and the fitted values.**
+
+* **If k is the number of the parameters in the model, and L is the maximum value of the likelihood function for the model, then AIC is defined as 2k-2log(L). Since smaller AIC is prefered, it looks like using all inputs as predictors is better than just 3M input**
+
+* **Also, other than the USGG10yr, others all seem strongly related to tightening. For example, the USGG3M coefficient -3.3456116 means with all else holds equal, each unit increase of USGG3M will result in -3.3456 decrease in log odd or log(P/(1-P)), where P is the probability of tightening**
+
+Calculate and plot log-odds and probabilities. Compare probabilities with fitted values.
+```{r}
+# Calculate odds
+Log.Odds<-predict(LogisticModel.TighteningEasing_All)
+plot(Log.Odds,type="l")
+Probabilities<-1/(exp(-Log.Odds)+1)  #from ln(P/(1-P)) to P
+plot(LogisticModel.TighteningEasing_All$fitted.values,type="l",ylab="Fitted Values & Log-Odds")
+lines(Probabilities,col="red")
+#lines(Probabilities_test,col = "green")
+
+```
+
+
+## Step 5.
+Compare linear regression models with different combinations of predictors.
+Select the best combination.
+
+Below we show only two of possible combinations: full model containing all 7 predictors and Null model containing only intercept, but none of the 7 predictors.
+Estimate other possible combinations.
+```{r}
+AssignmentDataRegressionComparison<-data.matrix(AssignmentData[,-c(9,10)],rownames.force="automatic")
+AssignmentDataRegressionComparison<-AssignmentData[,-c(9,10)]
+```
+
+Estimate the full model by using all 7 predictors.
+```{r}
+RegressionModelComparison.Full <- lm(Output1 ~ ., data = AssignmentDataRegressionComparison)
+names(summary(RegressionModelComparison.Full))
+#summary(RegressionModelComparison.Full)
+```
+
+Look at coefficients, \(R^2\), adjusted \(R^2\), degrees of freedom.
+
+1. Coefficients:
+```{r}
+summary(RegressionModelComparison.Full)$coefficients
+```
+
+2. \(R^2\), adjusted \(R^2\):
+```{r}
+summary(RegressionModelComparison.Full)$r.squared
+summary(RegressionModelComparison.Full)$adj.r.squared
+```
+
+3. degrees of freedom
+```{r}
+summary(RegressionModelComparison.Full)$df
+```
+
+**Intepret the fitted model. How good is the fit? How significant are the parameters?**
+
+**Too good, we might have overfitted, all the parameters are extremely significant**
+
+Estimate the Null model by including only intercept.
+```{r}
+RegressionModelComparison.Null <- lm(Output1 ~ 1, data = AssignmentDataRegressionComparison)
+summary(RegressionModelComparison.Null)
+```
+
+1. Coefficients:
+```{r}
+summary(RegressionModelComparison.Null)$coefficients
+```
+
+2. \(R^2\), adjusted \(R^2\):
+```{r}
+summary(RegressionModelComparison.Null)$r.squared
+summary(RegressionModelComparison.Null)$adj.r.squared
+```
+
+3. degrees of freedom
+```{r}
+summary(RegressionModelComparison.Null)$df
+```
+
+**Why summary(RegressionModelComparison.Null) does not show \(R^2\)?**
+
+**Because there is only beta0, no other betas. Thus, as shown below, SSM are almost zeros, SST = SSE, and \(R^2\) = SSM/SST = 0, the model is useless.**
+```{r}
+(SSM = sum((RegressionModelComparison.Null$fitted.values - mean(RegressionModelComparison.Null$fitted.values))^2))
+(SSE = sum((AssignmentDataRegressionComparison$Output1 - RegressionModelComparison.Null$fitted.values)^2))
+(SST = SSE+SSM)
+```
+
+Compare models pairwise using anova()
+```{r}
+anova(RegressionModelComparison.Full,RegressionModelComparison.Null)
+```
+
+**Interpret the results of anova().**
+
+**Not all betas are zeros for sure, however, the full model explains all the variations, which seems overfitting and might not be the best thing.**
+
+**Repeat the analysis for different combinations of input variables and select the one you think is the best.Explain your selection.**
+
+* **drop1()**
+```{r}
+drop1(RegressionModelComparison.Full)
+```
+
+* **pairs**
+```{r}
+pairs(AssignmentDataRegressionComparison)
+```
+
+**drop1 and pairs do not seem like good model selection methods in this case.**
+
+* **add1()**
+```{r}
+(myScope<-names(AssignmentDataRegressionComparison)[-8])
+add1(RegressionModelComparison.Null,scope=myScope)
+```
+
+USGG3YR should be added
+```{r}
+RegressionModelComparison.1 = lm(Output1 ~ USGG3YR, data = AssignmentDataRegressionComparison)
+summary(RegressionModelComparison.1)
+```
+
+note that the adj. R is already extremely high
+```{r}
+(myScope<-names(AssignmentDataRegressionComparison)[-c(4,8)])
+add1(RegressionModelComparison.1,scope=myScope)
+```
+
+```{r}
+RegressionModelComparison.2 = lm(Output1 ~ USGG3YR + USGG3M, data = AssignmentDataRegressionComparison)
+summary(RegressionModelComparison.2)
+```
+
+```{r}
+anova(RegressionModelComparison.1,RegressionModelComparison.2)
+```
+
+Anova result show that they are quite different. So we can keep both.
+```{r}
+(myScope<-names(AssignmentDataRegressionComparison)[-c(1,4,8)])
+add1(RegressionModelComparison.2,scope=myScope)
+```
+
+We should add USGG10YR next.
+```{r}
+RegressionModelComparison.3 = lm(Output1 ~ USGG3YR + USGG3M + USGG10YR, data = AssignmentDataRegressionComparison)
+summary(RegressionModelComparison.3)
+```
+
+```{r}
+anova(RegressionModelComparison.2,RegressionModelComparison.3)
+```
+
+anova show that it's significant again. and adj R is close to 1.
+**For now, we picked one short term, one median and one long term as predictors.**
+
+**Relative importance measures**
+```{r}
+suppressMessages(library(relaimpo))
+```
+
+```{r}
+metrics.Full <- calc.relimp(RegressionModelComparison.Full, type = c("lmg", "first", "last","betasq", "pratt"))
+metrics.Full
+```
+
+```{r}
+(metrics.Full.rank<-metrics.Full@lmg.rank)
+```
+
+**If we were to use three predictors, relative importance measures gave us a model with USGG3YR, SGG2YR, USGG5YR.**
+
+**Selection of predictors based on regsubsets()**
+```{r}
+library(leaps)
+```
+
+```{r}
+subsetsFull<-regsubsets(x=AssignmentDataRegressionComparison[,1:7],y=AssignmentDataRegressionComparison[,8])
+summary(subsetsFull)$which
+```
+**As can be seen, the three predictor model given by regsubset is a model by USGG3M, USGG2YR, USGG10YR, this is in fact very close to what we chose with Add1.**
+
+**Final selection:I decided to choose USGG3M + USGG3YR + USGG10YR as our predictors based on Add1() and regsebset().**
+
+
+##Step 6.
+Perform rolling window analysis of the yields data.
+Use package zoo for rolling window analysis.
+
+Set the window width and window shift parameters for rolling window.
+```{r}
+Window.width<-20; Window.shift<-5
+```
+
+Run rolling mean values usingrollapply().
+```{r}
+library(zoo)
+```
+Calculate rolling mean values for each variable.
+```{r}
+# Means
+all.means<-rollapply(AssignmentDataRegressionComparison,width=Window.width,by=Window.shift,by.column=TRUE, mean)
+head(all.means,10)
+
+# first mean is row 1-row20, the next mean is row 6- row25, so there there should be ~8300/5 =1660 means, that's why all means has 1657 rows. 
+```
+
+```{r}
+# Create points at which rolling means are calculated
+Count<-1:length(AssignmentDataRegressionComparison[,1]) #Count is a vector of 1:8300
+Rolling.window.matrix<-rollapply(Count,width=Window.width,by=Window.shift,by.column=FALSE,
+          FUN=function(z) z)
+Rolling.window.matrix[1:10,] # how is firt 10 means calculated. 
+```
+
+```{r}
+# Take middle of each window
+Points.of.calculation<-Rolling.window.matrix[,10]
+
+Points.of.calculation[1:10]
+
+length(Points.of.calculation)
+```
+
+
+```{r}
+# Incert means into the total length vector to plot the rolling mean with the original data
+Means.forPlot<-rep(NA,length(AssignmentDataRegressionComparison[,1])) #define a 8300 length NA
+Means.forPlot[Points.of.calculation]<-all.means[,1] #Means.forPlot's 10th, 15th 20th...1655 th positiion is inserted the of rolling window means from 3M, other places remains NA
+Means.forPlot[1:50]
+```
+
+
+```{r}
+cbind(AssignmentDataRegressionComparison[,1],Means.forPlot)[1:50,]
+plot(Means.forPlot,col="red")
+lines(AssignmentDataRegressionComparison[,1])
+```
+
+Run rolling daily difference standard deviation of each variable
+```{r}
+all.diff<- data.frame(diff(as.matrix(AssignmentDataRegressionComparison)))
+head(all.diff,10)
+```
+
+```{r}
+rolling.sd = rollapply(all.diff,width=Window.width,by=Window.shift,by.column=TRUE, sd)
+head(rolling.sd)
+```
+
+```{r}
+rolling.dates<-rollapply(AssignmentDataRegressionComparison[-1,],width=Window.width,by=Window.shift,
+                         by.column=FALSE,FUN=function(z) rownames(z))
+head(rolling.dates)
+```
+
+```{r}
+rownames(rolling.sd)<-rolling.dates[,10]
+head(rolling.sd) # made a data frame of rolling sds of daily differences with rownames of middle date, 
+```
+
+```{r}
+matplot(rolling.sd[,c(1,5,7,8)],xaxt="n",type="l",col=c("black","red","blue","green")) # 3M, 5Y and 30Y and output
+axis(side=1,at=1:1656,rownames(rolling.sd))
+```
+
+Show periods of high volatility.
+```{r}
+high.volatility.periods<-rownames(rolling.sd)[rolling.sd[,8]>.5]
+high.volatility.periods
+```
+**How is volatility related to the level of rates?**
+
+**As can be seen in the chart, high volatility is related the most to high fluctuation of rates of the USGG3M (black), then 6YR (red) and least with 30YR (blue)**
+
+Fit linear model to rolling window data using 3 months, 5 years and 30 years variables as predictors.
+```{r}
+# Rolling lm coefficients
+Coefficients<-rollapply(AssignmentDataRegressionComparison,width=Window.width,by=Window.shift,by.column=FALSE, FUN=function(z) coef(lm(Output1~USGG3M+USGG5YR+USGG30YR,data=as.data.frame(z))))
+
+rolling.dates<-rollapply(AssignmentDataRegressionComparison[,1:8],width=Window.width,by=Window.shift,by.column=FALSE, FUN=function(z) rownames(z)) #included the first row. why
+
+rownames(Coefficients)<-rolling.dates[,10]
+Coefficients[1:10,]
+```
+
+Look at pairwise X-Y plots of regression coefficients for the 3M, 5Yr and 30Yr yields as inputs.
+```{r}
+# Pairs plot of Coefficients
+pairs(Coefficients)
+```
+
+**Interpret the pairs plot.**
+
+* **coefficients of USGG5YR and USGG30YR have strong negative correlation, which means everything else stays the same, USGG5YR always changes the OUTPUT the opposite direction as USGG30YR does.**
+
+* **coefficients of USGG3M don't have strong correlation with either USGG5YR or USGG30YR, which means it change the OUTPUT in it's own way.**
+
+* **When intercept (related to previous OUTPUT change) is positive, USGG5YR's coefficient is also positive, whereas USGG30YR coefficient is negative. Vice versa.**
+
+Plot the coefficients. Show periods.
+```{r}
+# Plot of coefficients
+matplot(Coefficients[,-1],xaxt="n",type="l",col=c("black","red","green"))
+axis(side=1,at=1:1657,rownames(Coefficients))
+```
+
+```{r}
+high.slopespread.periods<-rownames(Coefficients)[Coefficients[,3]-Coefficients[,4]>3] # USGG5YR and USGG30YR coefficient difference larger than 3
+jump.slopes<-rownames(Coefficients)[Coefficients[,3]>3] #USGG5YR coefficient larger than 3 itself
+high.slopespread.periods
+```
+
+```{r}
+jump.slopes
+```
+
+**Is the picture of coefficients consistent with the picture of pairs? If yes, explain why.**
+
+**Yes, green and red are almost opposite direction, as we see from pairs(), whereas black seems to have no relation with green and red.**
+
+How often the R-squared is not considered high?
+```{r}
+# R-squared
+r.squared<-rollapply(AssignmentDataRegressionComparison,width=Window.width,by=Window.shift,by.column=FALSE,
+         FUN=function(z) summary(lm(Output1~USGG3M+USGG5YR+USGG30YR,data=as.data.frame(z)))$r.squared)
+r.squared<-cbind(rolling.dates[,10],r.squared)
+r.squared[1:10,]
+
+plot(r.squared[,2],xaxt="n",ylim=c(0,1))
+axis(side=1,at=1:1657,rownames(Coefficients))
+
+```
+
+```{r}
+(low.r.squared.periods<-r.squared[r.squared[,2]<.9,1])
+```
+
+**What could cause decrease of \(R^2\)?**
+
+* **One reason could be these days, the predictors we chose cannot predict the OUTPUT very well, instead, we could try using 6M, 2YR or 10YR as predictors**
+
+* **Or, there is event happening in the market on those days that causes correlation to decrease.**
+
+Analyze the rolling p-values.
+
+```{r}
+# P-values
+Pvalues<-rollapply(AssignmentDataRegressionComparison,width=Window.width,by=Window.shift,by.column=FALSE,
+                        FUN=function(z) summary(lm(Output1~USGG3M+USGG5YR+USGG30YR,data=as.data.frame(z)))$coefficients[,4])
+rownames(Pvalues)<-rolling.dates[,10]
+Pvalues[1:10,]
+
+matplot(Pvalues,xaxt="n",col=c("black","blue","red","green"),type="o")
+axis(side=1,at=1:1657,rownames(Coefficients))
+```
+
+```{r}
+rownames(Pvalues)[Pvalues[,2]>.5] #days that USGG3M is not a best predictor
+```
+
+```{r}
+rownames(Pvalues)[Pvalues[,3]>.5] # days that USGG5YR is not a best predictor
+``` 
+
+```{r}
+rownames(Pvalues)[Pvalues[,4]>.5] # days that USGG30YR is not a predictor
+```
+
+**Interpret the plot.**
+
+* **Intercept is always significant, previous OUTPUT should have significnat impact on the next OUTPUT**
+
+* **During 87 to 88, USGG5YR has some insignificant dates, but overall speaking it's the best predictor among the three.**
+
+* **During 03 and 09 to 14, USGG3M misses more dates as predictors, but prior to 90s, it's the best predictor of the OUTPUT.**
+
+* **USGG 30YR have lots of insignificant dates until after 2010. So although historically it's not a best choice for predictors it has become more important since 2010. **
+
+## Step 7.
+Perform PCA with the inputs (columns 1-7).
+```{r}
+AssignmentData.Output<-AssignmentData$Output1
+AssignmentData<-data.matrix(AssignmentData[,1:7],rownames.force="automatic")
+dim(AssignmentData)
+
+head(AssignmentData)
+```
+
+```{r}
+AD.Predictors.PCA<-princomp(AssignmentData)
+```
+
+Plot factors and their explained relative variance
+```{r}
+plot(AD.Predictors.PCA)
+barplot(AD.Predictors.PCA$sdev^2/sum(AD.Predictors.PCA$sdev^2),ylim=c(0,1))
+```
+
+The numeric numbers are:
+```{r}
+cumsum(AD.Predictors.PCA$sdev^2/sum(AD.Predictors.PCA$sdev^2))
+```
+
+**Comp.1 is very significant in explain all the variation among predictors.**
+
+Visualize the loadings
+```{r}
+(AD.PCALoadings<-AD.Predictors.PCA$loadings)
+```
+
+```{r}
+matplot(1:7,AD.Predictors.PCA$loadings,type="l",lty=1:7,lwd=1,xaxt="n",xlab="Predictor",ylab="Factor Loadings",ylim=c(-0.8,0.8),col=c("black","red","blue","green","cyan","orange","magenta"))
+abline(h=0)
+axis(1, 1:7,labels=colnames(AssignmentData))
+legend("topright",legend=c("L1","L2","L3","L4","L5","L6","L7"),lty=1:7,lwd=1,cex=.7,col=c("black","red","blue","green","cyan","orange","magenta"))
+```
+
+**Comp 1 has negative loadings from all predictors, it means that it captures all the increase or decrease of all predictors together, component 2 captures the opposite trend of short-term bonds and the long-term bonds, whereas component 3 captures the opposite trend between mid-term bonds and short/long term bonds**
+
+Visualize Factors
+```{r}
+AD.PCAFactors<-AD.Predictors.PCA$scores
+#Plot
+matplot(AD.Predictors.PCA$scores,type="l",lty=1:7,lwd=1,ylim=c(-30,20),col=c("black","red","blue","green","cyan","orange","magenta"))
+legend("topleft",ncol=2, legend=c("F1","F2","F3","F4","F5","F6","F7"),lty=1:7,lwd=1,col=c("black","red","blue","green","cyan","orange","magenta"))
+```
+
+Visualize correlations
+```{r}
+AD.Rotated<-as.data.frame(cbind(Output1=AssignmentData.Output,AD.PCAFactors))
+pairs(as.matrix(AD.Rotated))
+```
+
+**Output 1 really is strongly negatively correlated to component 1 and not too much with any other components, maybe slightly positively correlated to component 5**
+
+**Also component 2, component 3 and 5 are positively correlated, and they are all negatively correlated to component 4**
+
+```{r}
+(rSqrCorrelations<-apply(AD.Predictors.PCA$scores,2,cor,AssignmentData.Output)^2)
+```
+
+Calculate relative importance measures for the PCA factors.
+```{r}
+AD.lm.PCA.full<-lm(Output1~.,  data=AD.Rotated)
+metrics.AD.pca <- calc.relimp(AD.lm.PCA.full, type = c("lmg", "first", "last","betasq", "pratt"))
+(metrics.AD.pca@lmg.rank)
+```
+
+```{r}
+subsets.AD.Rotated<-regsubsets(x=AD.PCAFactors,y=AD.Rotated$Output1)
+summary(subsets.AD.Rotated)$which
+```
+
+**Indeed, like we suspected from the correlation charts, component 1 is a must for predicting Output1 and the next useful predictor is component 5**
+
+```{r}
+AD.lm.PCA.1<-lm(Output1 ~ Comp.1, data=AD.Rotated)
+summary(AD.lm.PCA.1)
+
+AD.lm.PCA.15<-lm(Output1 ~ Comp.1 + Comp.5, data=AD.Rotated)
+summary(AD.lm.PCA.15)
+```
+
+**After trying out with or without component 5, we can see we only need component 1 as the predictor, reaching Adjusted R-squared equals to 1. This is inevitably overfitting, but it's a simplification from selecting 1 or 2 or 3 predictors like we did in Step 5.**
+
